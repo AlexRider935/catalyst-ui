@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Share2, Play } from "lucide-react";
+import {
+  ArrowLeft,
+  Play,
+  HelpCircle,
+  GitBranch,
+  Map,
+  ChevronsRight,
+} from "lucide-react";
 
 export default function NewDecoderPage() {
   const sampleLog = `127.0.0.1 - - [13/Aug/2025:15:30:00 +0000] "GET /api/v1/users HTTP/1.1" 200 1452 "-" "Mozilla/5.0"`;
@@ -54,13 +61,13 @@ export default function NewDecoderPage() {
       </div>
 
       {/* Main Editor Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* Left Column: Input & Logic */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Left Column: The Workbench */}
         <div className="space-y-6">
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="p-4 border-b border-slate-200">
               <h2 className="font-semibold text-slate-800">
-                1. Paste Raw Log Sample
+                1. Raw Log Samples
               </h2>
             </div>
             <div className="p-4">
@@ -71,38 +78,82 @@ export default function NewDecoderPage() {
             </div>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
               <h2 className="font-semibold text-slate-800">
-                2. Define Parsing Pattern (Grok)
+                2. Parsing Engine (Grok)
               </h2>
+              <a
+                href="#"
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline">
+                <HelpCircle size={14} /> Pattern Help
+              </a>
             </div>
             <div className="p-4">
               <textarea
-                className="w-full h-32 p-4 font-mono text-sm bg-slate-50 rounded-lg"
+                className="w-full h-40 p-4 font-mono text-sm bg-slate-900 text-green-400 rounded-lg"
                 defaultValue={samplePattern}
               />
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50/70 rounded-b-xl text-right">
+              <button className="inline-flex items-center gap-2 rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">
+                <Play size={14} /> Test Pattern
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Output & Metadata */}
+        {/* Right Column: Results & Configuration */}
         <div className="space-y-6 lg:sticky lg:top-10">
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+            <div className="p-4 border-b border-slate-200">
               <h2 className="font-semibold text-slate-800">
-                3. View Structured Output
+                3. Structured Output
               </h2>
-              <button className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                <Play size={14} /> Test
-              </button>
             </div>
             <div className="p-4">
-              <pre className="w-full h-64 p-4 font-mono text-xs bg-slate-900 text-green-400 rounded-lg overflow-auto">
+              <pre className="w-full h-48 p-4 font-mono text-xs bg-slate-900 text-white rounded-lg overflow-auto">
                 {JSON.stringify(sampleOutput, null, 2)}
               </pre>
             </div>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="p-4 border-b border-slate-200">
+              <h2 className="font-semibold text-slate-800 flex items-center gap-2">
+                <Map size={16} /> 4. Schema Mapping
+              </h2>
+            </div>
+            <div className="p-4 text-sm">
+              <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2 text-xs font-semibold text-slate-500 mb-2">
+                <span>Extracted Field</span>
+                <span />
+                <span>Catalyst Schema Field</span>
+              </div>
+              <div className="space-y-2">
+                {Object.keys(sampleOutput)
+                  .slice(0, 4)
+                  .map((key) => (
+                    <div
+                      key={key}
+                      className="grid grid-cols-[1fr,auto,1fr] items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        defaultValue={key}
+                        className="w-full rounded-md border-slate-300 bg-slate-100 font-mono text-xs p-2"
+                      />
+                      <ChevronsRight size={16} className="text-slate-400" />
+                      <select className="w-full rounded-md border-slate-300 text-xs p-2 focus:border-blue-500 focus:ring-blue-500">
+                        <option>source.ip</option>
+                        <option>destination.ip</option>
+                        <option>user.name</option>
+                        <option>timestamp</option>
+                      </select>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
             <h3 className="font-semibold text-slate-800">Decoder Details</h3>
             <div className="space-y-4 mt-4">
               <div>
