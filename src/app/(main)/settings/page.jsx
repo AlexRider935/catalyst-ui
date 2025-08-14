@@ -9,11 +9,12 @@ import {
   KeyRound,
   Shield,
   Search,
+  ChevronRight,
 } from "lucide-react";
 
 // --- ARCHITECT'S NOTE ---
-// Assumes individual component files exist at these paths.
-// Example: src/components/settings/ProfileSettings.jsx
+// CORRECTED: Import paths now use robust path aliases.
+// This assumes your components are located in 'src/components/settings/'.
 import ProfileSettings from "./components/ProfileSettings";
 import SecuritySettings from "./components/SecuritySettings";
 import OrganizationSettings from "./components/OrganizationSettings";
@@ -78,34 +79,26 @@ export default function SettingsPage() {
   const ActiveComponent =
     settingsNav.find((item) => item.name === activeTab)?.component ||
     ProfileSettings;
-
   const activeNavItem = settingsNav.find((item) => item.name === activeTab);
 
   return (
-    <div className="space-y-8">
-      {/* Dynamic Header */}
+    <div className="space-y-8 h-full flex flex-col">
+      {/* Page Header */}
       <div>
-        <div className="flex items-center gap-3">
-          {activeNavItem && (
-            <activeNavItem.icon className="w-8 h-8 text-slate-500" />
-          )}
-          <h1 className="text-3xl font-bold text-slate-900">
-            {activeTab} Settings
-          </h1>
-        </div>
+        <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
         <p className="mt-1 text-slate-500">
           Manage your account, organization, and platform settings.
         </p>
       </div>
 
-      {/* Main Layout */}
-      <div className="flex flex-col md:flex-row gap-12">
+      {/* Main Layout - Unified Panel */}
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-x-8 bg-white border border-slate-200 rounded-2xl p-4 overflow-hidden">
         {/* Left Navigation */}
-        <aside className="md:w-1/4">
+        <aside className="md:col-span-1 md:border-r md:border-slate-200 md:pr-8 flex flex-col">
           <div className="relative mb-4">
             <Search
               size={18}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
             />
             <input
               type="text"
@@ -115,35 +108,68 @@ export default function SettingsPage() {
               className="w-full pl-10 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
-          <nav className="flex flex-row overflow-x-auto md:flex-col gap-1">
+
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex flex-col gap-1">
             {filteredNav.map((item) => (
               <button
                 key={item.name}
                 onClick={() => setActiveTab(item.name)}
-                className={`flex w-full items-start text-left gap-3 rounded-lg p-3 text-sm font-medium transition-colors flex-shrink-0 ${
+                className={`flex w-full items-center text-left gap-3 rounded-lg p-3 text-sm font-medium transition-all duration-200 ease-in-out ${
                   activeTab === item.name
-                    ? "bg-slate-100 text-slate-900"
-                    : "text-slate-600 hover:bg-slate-100/70 hover:text-slate-900"
+                    ? "bg-slate-900 text-white shadow-md scale-105"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}>
-                <item.icon size={18} className="mt-0.5" />
-                <div>
+                <item.icon size={18} />
+                <div className="flex-1">
                   <span className="font-semibold">{item.name}</span>
-                  <p className="text-xs text-slate-500">{item.subtitle}</p>
+                  <p
+                    className={`text-xs transition-colors ${
+                      activeTab === item.name
+                        ? "text-slate-300"
+                        : "text-slate-500"
+                    }`}>
+                    {item.subtitle}
+                  </p>
                 </div>
+                <ChevronRight
+                  size={16}
+                  className={`transition-transform ${
+                    activeTab === item.name ? "translate-x-1" : "opacity-50"
+                  }`}
+                />
               </button>
             ))}
           </nav>
+
+          {/* Mobile Navigation */}
+          <div className="md:hidden relative">
+            <select
+              value={activeTab}
+              onChange={(e) => setActiveTab(e.target.value)}
+              className="w-full appearance-none bg-white border border-slate-200 rounded-lg p-3 text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              {settingsNav.map((item) => (
+                <option key={item.name} value={item.name}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <ChevronRight
+              size={16}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none rotate-90"
+            />
+          </div>
         </aside>
 
         {/* Right Content Panel with Animation */}
-        <div className="md:w-3/4">
-          <div key={activeTab} className="animate-fade-in">
-            <ActiveComponent />
+        <div className="md:col-span-3 overflow-y-auto">
+          <div className="px-1 py-2">
+            <div key={activeTab} className="animate-fade-in">
+              <ActiveComponent />
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
-

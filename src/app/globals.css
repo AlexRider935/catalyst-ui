@@ -1,11 +1,14 @@
 @import "tailwindcss";
+
+@plugin "@tailwindcss/forms";
 @import "tw-animate-css";
+
+html {
+  font-size: 80%;
+}
 
 @custom-variant dark (&:is(.dark *));
 
-body {
-  @apply bg-slate-50 text-slate-800 antialiased;
-}
 
 @keyframes subtle-pan {
   0% {
@@ -132,14 +135,7 @@ body {
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-}
+
 
 
 @keyframes fadeIn {
