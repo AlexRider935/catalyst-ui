@@ -1,94 +1,212 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShieldCheck,
   Rss,
   Settings,
   LifeBuoy,
-  BarChart,
   Bug,
   Shield,
   Search,
-  Cloud,
-  Server,
-  Users,
-  FileText,
-  FileBarChart,
-  KeyRound,
-  GitBranch,
-  Bot,
-  Bell,
-  Code,
-  Database,
-  Share2,
-  ToyBrick,
-  Zap,
-  CaseSensitive,
-  Puzzle,
   Activity,
   ChevronDown,
+  Code,
+  GitBranch,
+  Share2,
+  Bot,
+  Zap,
+  CaseSensitive,
+  ToyBrick,
+  FileText,
+  FileBarChart,
+  Database,
+  Puzzle,
+  Bell,
 } from "lucide-react";
-import { useContext, useState } from "react";
-import Link from "next/link";
+import { useContext, useState, useMemo, useEffect } from "react";
+// CORRECTED: Path updated to a relative path to resolve the build error.
 import { SidebarContext } from "../Sidebar";
 
-// --- Reusable Sub-Components ---
-function SidebarItem({ icon, text, active, alert, href = "#" }) {
+// --- NAVIGATION CONFIGURATION (CORRECTED & COMPLETE) ---
+// This data structure defines the entire sidebar navigation.
+const navConfig = [
+  { type: "section", title: "Core" },
+  { type: "item", title: "Dashboard", icon: LayoutDashboard, href: "/" },
+  { type: "item", title: "Global Search", icon: Search, href: "/search" },
+  {
+    type: "item",
+    title: "Notifications",
+    icon: Bell,
+    href: "/notifications",
+    alert: true,
+  },
+  { type: "item", title: "Audit Log", icon: Activity, href: "/audit-log" },
+
+  { type: "section", title: "Intelligence" },
+  {
+    type: "item",
+    title: "Security Events",
+    icon: Shield,
+    href: "/intelligence/events",
+  },
+  {
+    type: "item",
+    title: "Vulnerabilities",
+    icon: Bug,
+    href: "/intelligence/vulnerabilities",
+  },
+  {
+    type: "item",
+    title: "Case Management",
+    icon: CaseSensitive,
+    href: "/intelligence/cases",
+  },
+  {
+    type: "item",
+    title: "Threat Intel Feeds",
+    icon: Zap,
+    href: "/intelligence/feeds",
+  },
+
+  { type: "section", title: "Compliance" },
+  {
+    type: "item",
+    title: "Auditor Console",
+    icon: ShieldCheck,
+    href: "/compliance",
+  },
+  {
+    type: "item",
+    title: "Evidence Library",
+    icon: FileText,
+    href: "/compliance/evidence",
+  },
+  {
+    type: "item",
+    title: "Frameworks",
+    icon: ToyBrick,
+    href: "/compliance/frameworks",
+  },
+
+  { type: "section", title: "Detection & Response" },
+  {
+    type: "dropdown",
+    title: "Detection Engine",
+    icon: Code,
+    prefix: "/detection",
+    children: [
+      {
+        type: "item",
+        title: "Rules",
+        icon: GitBranch,
+        href: "/detection/rules",
+      },
+      {
+        type: "item",
+        title: "Decoders",
+        icon: Share2,
+        href: "/detection/decoders",
+      },
+    ],
+  },
+  {
+    type: "dropdown",
+    title: "Response Engine",
+    icon: Bot,
+    prefix: "/response",
+    children: [
+      {
+        type: "item",
+        title: "Playbooks",
+        icon: Zap,
+        href: "/response/playbooks",
+      },
+      {
+        type: "item",
+        title: "Active Response",
+        icon: Zap,
+        href: "/response/actions",
+      },
+    ],
+  },
+
+  { type: "section", title: "Data & Platform" },
+  { type: "item", title: "Ingestion", icon: Rss, href: "/ingestion" },
+  { type: "item", title: "Data Lake", icon: Database, href: "/data/lake" },
+  {
+    type: "item",
+    title: "Notification Rules",
+    icon: Bell,
+    href: "/data/notifications",
+  },
+  {
+    type: "item",
+    title: "Integrations",
+    icon: Puzzle,
+    href: "/platform/integrations",
+  },
+  { type: "item", title: "Reporting", icon: FileBarChart, href: "/reporting" },
+  { type: "item", title: "Settings", icon: Settings, href: "/settings" },
+  { type: "item", title: "Help", icon: LifeBuoy, href: "/help" },
+];
+
+// --- REUSABLE SUB-COMPONENTS ---
+
+function SidebarItem({ item, active, onClick }) {
   const { expanded } = useContext(SidebarContext);
   return (
-    <Link href={href}>
-      <li
-        className={`relative flex items-center py-2 px-3 my-1 font-medium rounded-md cursor-pointer transition-colors group ${
-          active
-            ? "bg-slate-100 text-slate-900 font-semibold"
-            : "hover:bg-slate-100 text-slate-600"
+    <li
+      onClick={() => onClick(item.href)}
+      className={`relative flex items-center py-2.5 px-4 my-1 font-medium rounded-lg cursor-pointer transition-colors group ${
+        active
+          ? "bg-gradient-to-tr from-blue-50 to-blue-100 text-blue-700"
+          : "hover:bg-slate-100 text-slate-600"
+      }`}>
+      <item.icon size={20} />
+      <span
+        className={`overflow-hidden transition-all ${
+          expanded ? "w-52 ml-3" : "w-0"
         }`}>
-        {active && (
-          <div className="absolute left-0 w-1 h-6 bg-blue-600 rounded-r-full" />
-        )}
-        {icon}
-        <span
-          className={`overflow-hidden transition-all ${
-            expanded ? "w-52 ml-3" : "w-0"
-          }`}>
-          {text}
-        </span>
-        {alert && (
-          <div className="absolute right-3 w-2 h-2 rounded bg-blue-500" />
-        )}
-        {!expanded && (
-          <div className="absolute left-full rounded-md px-2 py-1 ml-6 bg-slate-900 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 z-50">
-            {text}
-          </div>
-        )}
-      </li>
-    </Link>
+        {item.title}
+      </span>
+      {item.alert && (
+        <div
+          className={`absolute right-4 w-2 h-2 rounded bg-blue-500 ${
+            expanded ? "" : "top-2"
+          }`}
+        />
+      )}
+      {!expanded && (
+        <div className="absolute left-full rounded-md px-2 py-1 ml-6 bg-slate-900 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 z-50">
+          {item.title}
+        </div>
+      )}
+    </li>
   );
 }
 
-function SidebarDropdown({ icon, text, children, active }) {
+function SidebarDropdown({ item, active, children }) {
   const { expanded } = useContext(SidebarContext);
   const [isOpen, setIsOpen] = useState(active);
+
+  useEffect(() => {
+    setIsOpen(active);
+  }, [active]);
+
   return (
     <>
       <li
-        onClick={() => setIsOpen(!isOpen)}
-        className={`relative flex items-center py-2 px-3 my-1 font-medium rounded-md cursor-pointer transition-colors group hover:bg-slate-100 ${
-          active ? "text-slate-900" : "text-slate-600"
+        onClick={() => setIsOpen((v) => !v)}
+        className={`relative flex items-center py-2.5 px-4 my-1 font-medium rounded-lg cursor-pointer transition-colors group hover:bg-slate-100 ${
+          active ? "text-slate-800" : "text-slate-600"
         }`}>
-        <div
-          className={`absolute left-0 w-1 h-6 rounded-r-full ${
-            active && !isOpen ? "bg-blue-600" : "bg-transparent"
-          }`}
-        />
-        {icon}
+        <item.icon size={20} />
         <span
           className={`overflow-hidden transition-all ${
             expanded ? "w-48 ml-3" : "w-0"
           }`}>
-          {text}
+          {item.title}
         </span>
         {expanded && (
           <ChevronDown
@@ -98,194 +216,125 @@ function SidebarDropdown({ icon, text, children, active }) {
         )}
       </li>
       {isOpen && expanded && (
-        <ul className="pl-7 space-y-0.5 border-l border-slate-200 ml-5 mt-1">
-          {children}
-        </ul>
+        <ul className="pl-8 border-l border-slate-200 ml-6">{children}</ul>
       )}
     </>
   );
 }
 
-function SidebarSection({ title }) {
-  const { expanded } = useContext(SidebarContext);
-  return (
-    <h3
-      className={`px-3 mt-6 mb-2 text-xs font-semibold uppercase text-slate-400 tracking-wider transition-all ${
-        !expanded ? "text-center" : ""
-      }`}>
-      {expanded ? title : "•••"}
-    </h3>
-  );
-}
+// --- MAIN COMPONENT ---
 
 export default function NavLinks() {
-  const pathname = usePathname();
-  const { expanded } = useContext(SidebarContext);
+  const { expanded, currentPath, onNavigate } = useContext(SidebarContext);
+  const [filter, setFilter] = useState("");
+  const pathname = currentPath || "";
+
+  const handleNavigation = (href) => {
+    if (onNavigate) {
+      onNavigate(href);
+    }
+  };
+
+  const filteredNav = useMemo(() => {
+    if (!filter) return navConfig;
+
+    const lowerCaseFilter = filter.toLowerCase();
+    const result = [];
+    let currentSection = null;
+
+    for (const item of navConfig) {
+      if (item.type === "section") {
+        currentSection = { ...item, items: [] };
+        continue;
+      }
+
+      let match = false;
+      const itemsToAdd = [];
+
+      if (item.type === "item") {
+        if (item.title.toLowerCase().includes(lowerCaseFilter)) {
+          match = true;
+          itemsToAdd.push(item);
+        }
+      } else if (item.type === "dropdown") {
+        const matchingChildren = item.children.filter((child) =>
+          child.title.toLowerCase().includes(lowerCaseFilter)
+        );
+        if (matchingChildren.length > 0) {
+          match = true;
+          itemsToAdd.push({ ...item, children: matchingChildren });
+        } else if (item.title.toLowerCase().includes(lowerCaseFilter)) {
+          match = true;
+          itemsToAdd.push(item);
+        }
+      }
+
+      if (match) {
+        if (currentSection && !result.includes(currentSection)) {
+          result.push(currentSection);
+        }
+        result.push(...itemsToAdd);
+      }
+    }
+    return result;
+  }, [filter]);
 
   return (
-    <div className="flex-1 px-3 overflow-y-auto">
-      <div className={`relative mb-2 ${!expanded ? "hidden" : "block"}`}>
+    <div className="flex-1 flex flex-col px-3 overflow-y-auto">
+      <div className={`relative my-2 ${!expanded ? "hidden" : "block"}`}>
         <Search
           size={16}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
         />
         <input
           type="text"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter navigation..."
-          className="w-full rounded-md border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
+          className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-4 text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500"
         />
       </div>
 
-      <ul className="mt-3">
-        <SidebarSection title="Core" />
-        <SidebarItem
-          href="/"
-          icon={<LayoutDashboard size={20} />}
-          text="Dashboard"
-          active={pathname === "/"}
-        />
-        <SidebarItem
-          href="/search"
-          icon={<Search size={20} />}
-          text="Global Search"
-          active={pathname.startsWith("/search")}
-        />
-        <SidebarItem
-          href="/audit-log"
-          icon={<Activity size={20} />}
-          text="Audit Log"
-          active={pathname.startsWith("/audit-log")}
-        />
-
-        <SidebarSection title="Intelligence" />
-        <SidebarItem
-          href="/intelligence/events"
-          icon={<Shield size={20} />}
-          text="Security Events"
-          active={pathname.startsWith("/intelligence/events")}
-        />
-        <SidebarItem
-          href="/intelligence/vulnerabilities"
-          icon={<Bug size={20} />}
-          text="Vulnerabilities"
-          active={pathname.startsWith("/intelligence/vulnerabilities")}
-        />
-        <SidebarItem
-          href="/intelligence/cases"
-          icon={<CaseSensitive size={20} />}
-          text="Case Management"
-          active={pathname.startsWith("/intelligence/cases")}
-        />
-        <SidebarItem
-          href="/intelligence/feeds"
-          icon={<Zap size={20} />}
-          text="Threat Intel Feeds"
-          active={pathname.startsWith("/intelligence/feeds")}
-        />
-
-        <SidebarSection title="Compliance" />
-        <SidebarItem
-          href="/compliance"
-          icon={<ShieldCheck size={20} />}
-          text="Auditor Console"
-          active={
-            pathname.startsWith("/compliance") &&
-            !pathname.includes("evidence") &&
-            !pathname.includes("frameworks")
+      <ul className="flex-1">
+        {filteredNav.map((item, index) => {
+          switch (item.type) {
+            case "section":
+              return (
+                <h3
+                  key={index}
+                  className={`px-4 mt-6 mb-2 text-xs font-semibold uppercase text-slate-400 tracking-wider transition-all ${
+                    !expanded ? "text-center" : ""
+                  }`}>
+                  {expanded ? item.title : "•••"}
+                </h3>
+              );
+            case "item":
+              return (
+                <SidebarItem
+                  key={item.href}
+                  item={item}
+                  active={pathname === item.href}
+                  onClick={handleNavigation}
+                />
+              );
+            case "dropdown":
+              const isActive = pathname.startsWith(item.prefix);
+              return (
+                <SidebarDropdown key={item.title} item={item} active={isActive}>
+                  {item.children.map((child) => (
+                    <SidebarItem
+                      key={child.href}
+                      item={child}
+                      active={pathname === child.href}
+                      onClick={handleNavigation}
+                    />
+                  ))}
+                </SidebarDropdown>
+              );
+            default:
+              return null;
           }
-        />
-        <SidebarItem
-          href="/compliance/evidence"
-          icon={<FileText size={20} />}
-          text="Evidence Library"
-          active={pathname.startsWith("/compliance/evidence")}
-        />
-        <SidebarItem
-          href="/compliance/frameworks"
-          icon={<ToyBrick size={20} />}
-          text="Frameworks"
-          active={pathname.startsWith("/compliance/frameworks")}
-        />
-
-        <SidebarSection title="Detection & Response" />
-        <SidebarDropdown
-          icon={<Code size={20} />}
-          text="Detection Engine"
-          active={pathname.startsWith("/detection")}>
-          <SidebarItem
-            href="/detection/rules"
-            icon={<GitBranch size={20} />}
-            text="Rules"
-            active={pathname.startsWith("/detection/rules")}
-          />
-          <SidebarItem
-            href="/detection/decoders"
-            icon={<Share2 size={20} />}
-            text="Decoders"
-            active={pathname.startsWith("/detection/decoders")}
-          />
-        </SidebarDropdown>
-        <SidebarDropdown
-          icon={<Bot size={20} />}
-          text="Response Engine"
-          active={pathname.startsWith("/response")}>
-          <SidebarItem
-            href="/response/playbooks"
-            icon={<Zap size={20} />}
-            text="Playbooks"
-            active={pathname.startsWith("/response/playbooks")}
-          />
-          <SidebarItem
-            href="/response/actions"
-            icon={<Zap size={20} />}
-            text="Active Response"
-            active={pathname.startsWith("/response/actions")}
-          />
-        </SidebarDropdown>
-
-        <SidebarSection title="Data & Platform" />
-        <SidebarItem
-          href="/ingestion"
-          icon={<Rss size={20} />}
-          text="Ingestion Manager"
-          active={pathname.startsWith("/ingestion")}
-        />
-        <SidebarItem
-          href="/data/lake"
-          icon={<Database size={20} />}
-          text="Data Lake"
-          active={pathname.startsWith("/data/lake")}
-        />
-        <SidebarItem
-          href="/data/notifications"
-          icon={<Bell size={20} />}
-          text="Notification Rules"
-          active={pathname.startsWith("/data/notifications")}
-        />
-        <SidebarItem
-          href="/platform/integrations"
-          icon={<Puzzle size={20} />}
-          text="Integrations"
-          active={pathname.startsWith("/platform/integrations")}
-        />
-        <SidebarItem
-          href="/reporting"
-          icon={<FileBarChart size={20} />}
-          text="Reporting"
-          active={pathname.startsWith("/reporting")}
-        />
-        <SidebarItem
-          href="/settings"
-          icon={<Settings size={20} />}
-          text="Platform Settings"
-          active={pathname.startsWith("/settings")}
-        />
-        <SidebarItem
-          href="/help"
-          icon={<LifeBuoy size={20} />}
-          text="Help & Support"
-          active={pathname.startsWith("/help")}
-        />
+        })}
       </ul>
     </div>
   );
