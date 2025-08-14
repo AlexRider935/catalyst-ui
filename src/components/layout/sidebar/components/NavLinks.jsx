@@ -27,6 +27,7 @@ import {
 import { useContext, useState, useMemo, useEffect } from "react";
 // CORRECTED: Path updated to a relative path to resolve the build error.
 import { SidebarContext } from "../Sidebar";
+import Link from "next/link";
 
 // --- NAVIGATION CONFIGURATION (CORRECTED & COMPLETE) ---
 // This data structure defines the entire sidebar navigation.
@@ -153,36 +154,39 @@ const navConfig = [
 
 // --- REUSABLE SUB-COMPONENTS ---
 
-function SidebarItem({ item, active, onClick }) {
+function SidebarItem({ item, active }) {
   const { expanded } = useContext(SidebarContext);
   return (
-    <li
-      onClick={() => onClick(item.href)}
-      className={`relative flex items-center py-2.5 px-4 my-1 font-medium rounded-lg cursor-pointer transition-colors group ${
-        active
-          ? "bg-gradient-to-tr from-blue-50 to-blue-100 text-blue-700"
-          : "hover:bg-slate-100 text-slate-600"
-      }`}>
-      <item.icon size={20} />
-      <span
-        className={`overflow-hidden transition-all ${
-          expanded ? "w-52 ml-3" : "w-0"
-        }`}>
-        {item.title}
-      </span>
-      {item.alert && (
-        <div
-          className={`absolute right-4 w-2 h-2 rounded bg-blue-500 ${
-            expanded ? "" : "top-2"
+    <Link href={item.href}>
+      <li
+        className={`relative flex items-center py-2.5 px-4 my-1 font-medium rounded-lg cursor-pointer transition-colors group ${
+          active
+            ? "bg-gradient-to-tr from-blue-50 to-blue-100 text-blue-700"
+            : "hover:bg-slate-100 text-slate-600"
+        }`}
+      >
+        <item.icon size={20} />
+        <span
+          className={`overflow-hidden transition-all ${
+            expanded ? "w-52 ml-3" : "w-0"
           }`}
-        />
-      )}
-      {!expanded && (
-        <div className="absolute left-full rounded-md px-2 py-1 ml-6 bg-slate-900 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 z-50">
+        >
           {item.title}
-        </div>
-      )}
-    </li>
+        </span>
+        {item.alert && (
+          <div
+            className={`absolute right-4 w-2 h-2 rounded bg-blue-500 ${
+              expanded ? "" : "top-2"
+            }`}
+          />
+        )}
+        {!expanded && (
+          <div className="absolute left-full rounded-md px-2 py-1 ml-6 bg-slate-900 text-white text-sm invisible opacity-20 -translate-x-3 transition-all group-hover:visible group-hover:opacity-100 group-hover:translate-x-0 z-50">
+            {item.title}
+          </div>
+        )}
+      </li>
+    </Link>
   );
 }
 
@@ -225,15 +229,10 @@ function SidebarDropdown({ item, active, children }) {
 // --- MAIN COMPONENT ---
 
 export default function NavLinks() {
-  const { expanded, currentPath, onNavigate } = useContext(SidebarContext);
+
+  const { expanded, currentPath } = useContext(SidebarContext);
   const [filter, setFilter] = useState("");
   const pathname = currentPath || "";
-
-  const handleNavigation = (href) => {
-    if (onNavigate) {
-      onNavigate(href);
-    }
-  };
 
   const filteredNav = useMemo(() => {
     if (!filter) return navConfig;
@@ -314,7 +313,6 @@ export default function NavLinks() {
                   key={item.href}
                   item={item}
                   active={pathname === item.href}
-                  onClick={handleNavigation}
                 />
               );
             case "dropdown":
@@ -326,7 +324,6 @@ export default function NavLinks() {
                       key={child.href}
                       item={child}
                       active={pathname === child.href}
-                      onClick={handleNavigation}
                     />
                   ))}
                 </SidebarDropdown>

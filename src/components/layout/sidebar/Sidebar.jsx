@@ -9,7 +9,7 @@ import WorkspaceSwitcher from "./components/WorkspaceSwitcher";
 export const SidebarContext = createContext();
 
 // The component now accepts the props passed down from the layout.
-export default function Sidebar({ onNavigate, currentPath }) {
+export default function Sidebar({ currentPath }) {
   const [expanded, setExpanded] = useState(true);
 
   return (
@@ -20,7 +20,7 @@ export default function Sidebar({ onNavigate, currentPath }) {
       <nav className="h-full flex flex-col bg-white border-r border-slate-200 shadow-sm">
         {/* The context provider now makes the navigation props available to all children. */}
         <SidebarContext.Provider
-          value={{ expanded, setExpanded, onNavigate, currentPath }}>
+          value={{ expanded, setExpanded, currentPath }}>
           <WorkspaceSwitcher />
           <NavLinks />
           <UserProfile />
