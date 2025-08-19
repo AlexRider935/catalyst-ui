@@ -1,17 +1,90 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Dialog, Transition } from "@headlessui/react";
+import { List, TestTube, Plus, AlertTriangle } from "lucide-react";
 import clsx from "clsx";
 import ServiceList from "./components/ServiceList";
 import DecoderDetail from "./components/DecoderDetail";
 import EditDecoderPanel from "./components/EditDecoderPanel";
 import CreateServicePanel from "./components/CreateServicePanel";
 import LiveTestBench from "./components/LiveTestBench";
-import { List, TestTube } from "lucide-react";
 
+// --- Delete Confirmation Modal for Services ---
+const DeleteServiceModal = ({ service, isOpen, onClose, onDelete }) => (
+  <Transition appear show={isOpen} as={Fragment}>
+    <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Transition.Child
+        as={Fragment}
+        enter="ease-out duration-300"
+        enterFrom="opacity-0"
+        enterTo="opacity-100"
+        leave="ease-in duration-200"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0">
+        <div className="fixed inset-0 bg-black/30" />
+      </Transition.Child>
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4 text-center">
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0 scale-95"
+            enterTo="opacity-100 scale-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100 scale-100"
+            leaveTo="opacity-0 scale-95">
+            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <div className="sm:flex sm:items-start">
+                <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                  <AlertTriangle
+                    className="h-6 w-6 text-red-600"
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                  <Dialog.Title
+                    as="h3"
+                    className="text-base font-semibold leading-6 text-slate-900">
+                    Delete Service
+                  </Dialog.Title>
+                  <div className="mt-2">
+                    <p className="text-sm text-slate-500">
+                      Are you sure you want to delete the service{" "}
+                      <span className="font-bold text-slate-700">
+                        {service?.name}
+                      </span>
+                      ? This will also delete all of its decoders. This action
+                      cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
+                  onClick={() => onDelete(service?.id)}>
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto"
+                  onClick={onClose}>
+                  Cancel
+                </button>
+              </div>
+            </Dialog.Panel>
+          </Transition.Child>
+        </div>
+      </div>
+    </Dialog>
+  </Transition>
+);
+
+// --- Main Decoders Page Component ---
 export default function DecodersPage() {
-  // All state and handlers remain the same
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,6 +92,7 @@ export default function DecodersPage() {
   const [editingDecoder, setEditingDecoder] = useState(null);
   const [isCreateServicePanelOpen, setIsCreateServicePanelOpen] =
     useState(false);
+  const [serviceToDelete, setServiceToDelete] = useState(null); // State for delete modal
   const [activeTab, setActiveTab] = useState("management");
 
   const refreshData = async () => {
@@ -51,9 +125,11 @@ export default function DecodersPage() {
   useEffect(() => {
     refreshData();
   }, []);
+
   useEffect(() => {
     if (!selectedService || !selectedService.id || selectedService.decoders)
       return;
+
     const fetchDecodersForService = async () => {
       try {
         const response = await fetch(
@@ -61,6 +137,14 @@ export default function DecodersPage() {
         );
         if (!response.ok) throw new Error("Network response was not ok");
         const decoderData = await response.json();
+
+        // --- BUG FIX: Use a functional update to prevent stale state ---
+        setServices((currentServices) =>
+          currentServices.map((s) =>
+            s.id === selectedService.id ? { ...s, decoders: decoderData } : s
+          )
+        );
+
         setSelectedService((currentService) => ({
           ...currentService,
           decoders: decoderData,
@@ -73,7 +157,7 @@ export default function DecodersPage() {
       }
     };
     fetchDecodersForService();
-  }, [selectedService]);
+  }, [selectedService?.id]);
 
   const handleSelectService = (service) => setSelectedService(service);
   const handleCreateService = () => setIsCreateServicePanelOpen(true);
@@ -85,123 +169,137 @@ export default function DecodersPage() {
     setEditingDecoder(null);
     setIsEditPanelOpen(true);
   };
-  const handleDeleteDecoder = async (decoderId, decoderName) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete the decoder "${decoderName}"?`
-      )
-    ) {
-      try {
-        const response = await fetch(`/api/decoders/${decoderId}`, {
-          method: "DELETE",
-        });
-        if (!response.ok) throw new Error("Failed to delete decoder");
-        await refreshData();
-      } catch (error) {
-        console.error(error);
-      }
+  const handleDeleteDecoder = async (decoderId) => {
+    try {
+      const response = await fetch(`/api/decoders/${decoderId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete decoder");
+      await refreshData();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDeleteService = async (serviceId) => {
+    try {
+      const response = await fetch(`/api/services/${serviceId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete service");
+      setServiceToDelete(null); // Close modal
+      await refreshData(); // Refresh the list
+    } catch (error) {
+      console.error(error);
+      setServiceToDelete(null);
     }
   };
 
   return (
-    <div className="h-full bg-slate-50 relative">
-      <div className="absolute inset-0 bg-gradient-to-br from-white via-slate-50 to-slate-100"></div>
-      <div className="relative h-full flex flex-col">
-        <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 z-10">
-          <div className="mx-auto max-w-full px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                  Decoder Studio
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">
-                  Manage decoders or test logs against the entire ruleset in the
-                  live bench.
-                </p>
-              </div>
-            </div>
-            <nav className="flex space-x-2">
-              <TabButton
-                id="management"
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                icon={<List size={16} />}
-                label="Management"
-              />
-              <TabButton
-                id="testbench"
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                icon={<TestTube size={16} />}
-                label="Live Test Bench"
-              />
-            </nav>
+    <>
+      <DeleteServiceModal
+        isOpen={!!serviceToDelete}
+        onClose={() => setServiceToDelete(null)}
+        onDelete={handleDeleteService}
+        service={serviceToDelete}
+      />
+      <div className="flex flex-col h-full space-y-8">
+        <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">
+              Decoder Studio
+            </h1>
+            <p className="mt-1 text-slate-500">
+              Manage and test the logic that parses raw logs into structured
+              data.
+            </p>
           </div>
-        </header>
+          {activeTab === "management" && (
+            <button
+              type="button"
+              onClick={handleCreateService}
+              className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-slate-900 py-2.5 px-5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">
+              <Plus size={18} /> New Service
+            </button>
+          )}
+        </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="flex-1 overflow-hidden">
-            {activeTab === "management" && (
-              // ✨ UPDATED: This main container creates the inset box effect
-              <main className="h-full p-4 sm:p-6 lg:p-8">
-                <div className="flex h-full bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200/80 overflow-hidden">
+        <div className="flex-shrink-0 border-b border-slate-200">
+          <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+            <TabButton
+              id="management"
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              label="Management"
+            />
+            <TabButton
+              id="testbench"
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              label="Live Test Bench"
+            />
+          </nav>
+        </div>
+
+        <div className="flex-1 min-h-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="h-full">
+              {activeTab === "management" && (
+                <div className="flex h-full rounded-xl shadow-sm border border-slate-200/80 bg-white overflow-hidden">
                   <ServiceList
                     services={services}
                     selectedService={selectedService}
                     onSelect={handleSelectService}
                     isLoading={isLoading}
                     onCreateService={handleCreateService}
+                    onDeleteService={setServiceToDelete} // Pass the function to open the modal
                   />
                   <DecoderDetail
                     service={selectedService}
                     onEditDecoder={handleEditDecoder}
                     onCreateDecoder={handleCreateDecoder}
                     onDeleteDecoder={handleDeleteDecoder}
+                    onUpdate={refreshData}
                   />
                 </div>
-              </main>
-            )}
-            {activeTab === "testbench" && <LiveTestBench />}
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Panels are unchanged */}
-        <EditDecoderPanel
-          isOpen={isEditPanelOpen}
-          onClose={() => setIsEditPanelOpen(false)}
-          decoder={editingDecoder}
-          service={selectedService}
-          onUpdate={refreshData}
-        />
-        <CreateServicePanel
-          isOpen={isCreateServicePanelOpen}
-          onClose={() => setIsCreateServicePanelOpen(false)}
-          onUpdate={refreshData}
-        />
+              )}
+              {activeTab === "testbench" && <LiveTestBench />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
-    </div>
+
+      <EditDecoderPanel
+        isOpen={isEditPanelOpen}
+        onClose={() => setIsEditPanelOpen(false)}
+        decoder={editingDecoder}
+        service={selectedService}
+        onUpdate={refreshData}
+      />
+      <CreateServicePanel
+        isOpen={isCreateServicePanelOpen}
+        onClose={() => setIsCreateServicePanelOpen(false)}
+        onUpdate={refreshData}
+      />
+    </>
   );
 }
 
-const TabButton = ({ id, activeTab, setActiveTab, icon, label }) => (
+const TabButton = ({ id, activeTab, setActiveTab, label }) => (
   <button
     onClick={() => setActiveTab(id)}
     className={clsx(
-      "relative flex items-center gap-2 whitespace-nowrap py-3 px-4 text-sm font-medium transition-colors focus:outline-none",
-      activeTab === id ? "text-blue-600" : "text-slate-500 hover:text-slate-800"
+      "whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors focus:outline-none",
+      activeTab === id
+        ? "border-blue-500 text-blue-600"
+        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
     )}>
-    {icon} {label}
-    {activeTab === id && (
-      <motion.div
-        layoutId="active-tab-indicator"
-        className="absolute inset-x-0 bottom-0 h-0.5 bg-blue-600"
-      />
-    )}
+    {label}
   </button>
 );
