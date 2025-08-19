@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import clsx from "clsx";
 import ServiceList from "./components/ServiceList";
 import DecoderDetail from "./components/DecoderDetail";
 import EditDecoderPanel from "./components/EditDecoderPanel";
 import CreateServicePanel from "./components/CreateServicePanel";
-import TestResultsModal from "./components/TestResultModal";
-import { PlayCircle } from "lucide-react";
-
+import LiveTestBench from "./components/LiveTestBench";
+import { List, TestTube } from "lucide-react";
 
 export default function DecodersPage() {
+  // State for Management tab
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -17,10 +19,11 @@ export default function DecodersPage() {
   const [editingDecoder, setEditingDecoder] = useState(null);
   const [isCreateServicePanelOpen, setIsCreateServicePanelOpen] =
     useState(false);
-  const [isTestRunning, setIsTestRunning] = useState(false);
-  const [testResults, setTestResults] = useState(null);
-  const [isResultsModalOpen, setIsResultsModalOpen] = useState(false);
 
+  // State for tabs
+  const [activeTab, setActiveTab] = useState("management");
+
+  // Data fetching and handlers for the Management tab
   const refreshData = async () => {
     setIsLoading(true);
     try {
@@ -55,7 +58,6 @@ export default function DecodersPage() {
   useEffect(() => {
     if (!selectedService || !selectedService.id) return;
     if (selectedService.decoders) return;
-
     const fetchDecodersForService = async () => {
       try {
         const response = await fetch(
@@ -104,79 +106,104 @@ export default function DecodersPage() {
       }
     }
   };
-  const handleRunTests = async () => {
-    setIsTestRunning(true);
-    setTestResults(null);
-    try {
-      const response = await fetch("/api/decoders/run-integrity-test", {
-        method: "POST",
-      });
-      if (!response.ok) throw new Error("Failed to run tests");
-      const results = await response.json();
-      setTestResults(results);
-      setIsResultsModalOpen(true);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsTestRunning(false);
-    }
-  };
 
   return (
-    <>
-      <header className="bg-white shadow-sm border-b border-slate-200">
-        <div className="mx-auto max-w-full px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-lg font-semibold leading-6 text-slate-900">
-              Decoder Management
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Manage and test all system decoders.
-            </p>
+    <div className="h-full bg-slate-50 relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-slate-50 to-slate-100"></div>
+      <div className="relative h-full flex flex-col">
+        <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200 z-10">
+          <div className="mx-auto max-w-full px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center py-4">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-slate-900">
+                  Decoder Studio
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Manage decoders or test logs against the entire ruleset in the
+                  live bench.
+                </p>
+              </div>
+            </div>
+            <nav className="flex space-x-2">
+              <TabButton
+                id="management"
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                icon={<List size={16} />}
+                label="Management"
+              />
+              <TabButton
+                id="testbench"
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                icon={<TestTube size={16} />}
+                label="Live Test Bench"
+              />
+            </nav>
           </div>
-          <button
-            onClick={handleRunTests}
-            disabled={isTestRunning}
-            className="inline-flex items-center gap-x-2 rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50">
-            <PlayCircle className="-ml-0.5 h-5 w-5" />
-            {isTestRunning ? "Running Tests..." : "Run Integrity Test"}
-          </button>
-        </div>
-      </header>
-      <main className="h-[calc(100vh-8.5rem)] bg-slate-50">
-        <div className="flex h-full">
-          <ServiceList
-            services={services}
-            selectedService={selectedService}
-            onSelect={handleSelectService}
-            isLoading={isLoading}
-            onCreateService={handleCreateService}
-          />
-          <DecoderDetail
-            service={selectedService}
-            onEditDecoder={handleEditDecoder}
-            onCreateDecoder={handleCreateDecoder}
-            onDeleteDecoder={handleDeleteDecoder}
-          />
-        </div>
-      </main>
-      <EditDecoderPanel
-        isOpen={isEditPanelOpen}
-        onClose={() => setIsEditPanelOpen(false)}
-        decoder={editingDecoder}
-        service={selectedService}
-        onUpdate={refreshData}
-      />
-      <CreateServicePanel
-        isOpen={isCreateServicePanelOpen}
-        onClose={() => setIsCreateServicePanelOpen(false)}
-        onUpdate={refreshData}
-      />
-      <TestResultsModal
-        isOpen={isResultsModalOpen}
-        onClose={() => setIsResultsModalOpen(false)}
-        results={testResults}
-      />
-    </>
+        </header>
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="flex-1 overflow-hidden">
+            {activeTab === "management" && (
+              <main className="h-full">
+                <div className="flex h-full">
+                  <ServiceList
+                    services={services}
+                    selectedService={selectedService}
+                    onSelect={handleSelectService}
+                    isLoading={isLoading}
+                    onCreateService={handleCreateService}
+                  />
+                  <DecoderDetail
+                    service={selectedService}
+                    onEditDecoder={handleEditDecoder}
+                    onCreateDecoder={handleCreateDecoder}
+                    onDeleteDecoder={handleDeleteDecoder}
+                  />
+                </div>
+              </main>
+            )}
+            {activeTab === "testbench" && <LiveTestBench />}
+          </motion.div>
+        </AnimatePresence>
+
+        <EditDecoderPanel
+          isOpen={isEditPanelOpen}
+          onClose={() => setIsEditPanelOpen(false)}
+          decoder={editingDecoder}
+          service={selectedService}
+          onUpdate={refreshData}
+        />
+        <CreateServicePanel
+          isOpen={isCreateServicePanelOpen}
+          onClose={() => setIsCreateServicePanelOpen(false)}
+          onUpdate={refreshData}
+        />
+      </div>
+    </div>
   );
 }
+
+const TabButton = ({ id, activeTab, setActiveTab, icon, label }) => (
+  <button
+    onClick={() => setActiveTab(id)}
+    className={clsx(
+      "relative flex items-center gap-2 whitespace-nowrap py-3 px-4 text-sm font-medium transition-colors focus:outline-none",
+      activeTab === id ? "text-blue-600" : "text-slate-500 hover:text-slate-800"
+    )}>
+    {icon} {label}
+    {activeTab === id && (
+      <motion.div
+        layoutId="active-tab-indicator"
+        className="absolute inset-x-0 bottom-0 h-0.5 bg-blue-600"
+      />
+    )}
+  </button>
+);
