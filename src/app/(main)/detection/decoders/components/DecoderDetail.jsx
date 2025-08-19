@@ -3,32 +3,52 @@
 import { Plus, FileCode2, Pencil, LayoutList, Trash2 } from "lucide-react";
 import StatusToggle from "./StatusToggle";
 
+const DecoderSkeleton = () => (
+  <div className="space-y-4">
+    {[...Array(3)].map((_, i) => (
+      <div
+        key={i}
+        className="bg-white p-5 rounded-lg border border-slate-200 animate-pulse">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="h-8 w-8 bg-slate-200 rounded"></div>
+            <div>
+              <div className="h-4 bg-slate-200 rounded w-32 mb-2"></div>
+              <div className="h-3 bg-slate-200 rounded w-16"></div>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 pl-12 space-y-4">
+          <div>
+            <div className="h-3 bg-slate-200 rounded w-24 mb-2"></div>
+            <div className="h-8 bg-slate-100 rounded"></div>
+          </div>
+          <div>
+            <div className="h-3 bg-slate-200 rounded w-32 mb-2"></div>
+            <div className="h-8 bg-slate-100 rounded"></div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 export default function DecoderDetail({
   service,
   onEditDecoder,
   onCreateDecoder,
   onDeleteDecoder,
 }) {
-  // --- DIAGNOSTIC LOG 3 ---
-  // This log will show what props the component is receiving.
-  console.log(
-    "[DETAIL] Rendering. Service Prop:",
-    service,
-    "| Is onCreateDecoder a function?",
-    typeof onCreateDecoder === "function"
-  );
-
   if (!service) {
     return (
-      <section className="flex-1 h-full flex items-center justify-center bg-slate-50">
+      <section className="flex-1 h-full flex items-center justify-center">
         <div className="text-center p-8">
           <LayoutList className="h-16 w-16 text-slate-300 mx-auto" />
           <h2 className="mt-4 text-xl font-semibold text-slate-800">
             Select a Service
           </h2>
           <p className="mt-1 text-slate-500">
-            Choose a service from the left panel to view and manage its
-            decoders.
+            Choose a service to view its decoders.
           </p>
         </div>
       </section>
@@ -36,8 +56,8 @@ export default function DecoderDetail({
   }
 
   return (
-    <section className="relative z-0 flex-1 h-full overflow-y-auto bg-slate-50">
-      <div className="p-4 border-b border-slate-200 bg-white/60 backdrop-blur-sm sticky top-0 z-10">
+    <section className="flex-1 h-full flex flex-col">
+      <div className="p-4 border-b border-slate-200">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -58,8 +78,10 @@ export default function DecoderDetail({
           </button>
         </div>
       </div>
-      <div className="p-4 lg:p-6">
-        {service.decoders && service.decoders.length > 0 ? (
+      <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+        {service.decoders === undefined ? (
+          <DecoderSkeleton />
+        ) : service.decoders.length > 0 ? (
           <ul className="space-y-4">
             {service.decoders.map((decoder) => (
               <li

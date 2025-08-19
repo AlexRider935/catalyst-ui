@@ -11,7 +11,7 @@ import LiveTestBench from "./components/LiveTestBench";
 import { List, TestTube } from "lucide-react";
 
 export default function DecodersPage() {
-  // State for Management tab
+  // All state and handlers remain the same
   const [services, setServices] = useState([]);
   const [selectedService, setSelectedService] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,11 +19,8 @@ export default function DecodersPage() {
   const [editingDecoder, setEditingDecoder] = useState(null);
   const [isCreateServicePanelOpen, setIsCreateServicePanelOpen] =
     useState(false);
-
-  // State for tabs
   const [activeTab, setActiveTab] = useState("management");
 
-  // Data fetching and handlers for the Management tab
   const refreshData = async () => {
     setIsLoading(true);
     try {
@@ -54,10 +51,9 @@ export default function DecodersPage() {
   useEffect(() => {
     refreshData();
   }, []);
-
   useEffect(() => {
-    if (!selectedService || !selectedService.id) return;
-    if (selectedService.decoders) return;
+    if (!selectedService || !selectedService.id || selectedService.decoders)
+      return;
     const fetchDecodersForService = async () => {
       try {
         const response = await fetch(
@@ -152,8 +148,9 @@ export default function DecodersPage() {
             transition={{ duration: 0.2 }}
             className="flex-1 overflow-hidden">
             {activeTab === "management" && (
-              <main className="h-full">
-                <div className="flex h-full">
+              // ✨ UPDATED: This main container creates the inset box effect
+              <main className="h-full p-4 sm:p-6 lg:p-8">
+                <div className="flex h-full bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-slate-200/80 overflow-hidden">
                   <ServiceList
                     services={services}
                     selectedService={selectedService}
@@ -174,6 +171,7 @@ export default function DecodersPage() {
           </motion.div>
         </AnimatePresence>
 
+        {/* Panels are unchanged */}
         <EditDecoderPanel
           isOpen={isEditPanelOpen}
           onClose={() => setIsEditPanelOpen(false)}
