@@ -57,7 +57,7 @@ export default function DecoderDetail({
 
   return (
     <section className="flex-1 h-full flex flex-col">
-      <div className="p-4 border-b border-slate-200">
+      <div className="p-4 border-b border-slate-200" style={{paddingBottom: '3.4rem'}}>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -125,7 +125,7 @@ export default function DecoderDetail({
                       <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                         Example Log
                       </p>
-                      <pre className="mt-1 w-full overflow-x-auto rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200">
+                      <pre className="mt-1 w-full overflow-x-auto rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200" style={{whiteSpace: "pre-wrap", wordBreak: "break-all"}}>
                         <code>{decoder.log_example}</code>
                       </pre>
                     </div>
@@ -133,7 +133,7 @@ export default function DecoderDetail({
                       <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                         Regular Expression
                       </p>
-                      <pre className="mt-1 w-full overflow-x-auto rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200">
+                      <pre className="mt-1 w-full overflow-x-auto rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200" style={{whiteSpace: "pre-wrap", wordBreak: "break-all"}}>
                         <code>{decoder.regex}</code>
                       </pre>
                     </div>
