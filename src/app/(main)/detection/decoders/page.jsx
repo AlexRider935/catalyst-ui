@@ -11,8 +11,14 @@ import EditDecoderPanel from "./components/EditDecoderPanel";
 import CreateServicePanel from "./components/CreateServicePanel";
 import LiveTestBench from "./components/LiveTestBench";
 
-// --- Delete Confirmation Modal for Services ---
-const DeleteServiceModal = ({ service, isOpen, onClose, onDelete }) => (
+// --- Delete Confirmation Modals ---
+const DeleteConfirmationModal = ({
+  title,
+  name,
+  isOpen,
+  onClose,
+  onDelete,
+}) => (
   <Transition appear show={isOpen} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
       <Transition.Child
@@ -47,16 +53,13 @@ const DeleteServiceModal = ({ service, isOpen, onClose, onDelete }) => (
                   <Dialog.Title
                     as="h3"
                     className="text-base font-semibold leading-6 text-slate-900">
-                    Delete Service
+                    {title}
                   </Dialog.Title>
                   <div className="mt-2">
                     <p className="text-sm text-slate-500">
-                      Are you sure you want to delete the service{" "}
-                      <span className="font-bold text-slate-700">
-                        {service?.name}
-                      </span>
-                      ? This will also delete all of its decoders. This action
-                      cannot be undone.
+                      Are you sure you want to delete{" "}
+                      <span className="font-bold text-slate-700">{name}</span>?
+                      This action cannot be undone.
                     </p>
                   </div>
                 </div>
@@ -65,7 +68,7 @@ const DeleteServiceModal = ({ service, isOpen, onClose, onDelete }) => (
                 <button
                   type="button"
                   className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
-                  onClick={() => onDelete(service?.id)}>
+                  onClick={onDelete}>
                   Delete
                 </button>
                 <button
@@ -92,26 +95,50 @@ export default function DecodersPage() {
   const [editingDecoder, setEditingDecoder] = useState(null);
   const [isCreateServicePanelOpen, setIsCreateServicePanelOpen] =
     useState(false);
-  const [serviceToDelete, setServiceToDelete] = useState(null); // State for delete modal
+  const [serviceToDelete, setServiceToDelete] = useState(null);
+  const [decoderToDelete, setDecoderToDelete] = useState(null);
   const [activeTab, setActiveTab] = useState("management");
 
+  // --- BUG FIX: Re-architected data fetching ---
   const refreshData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/services");
-      if (!response.ok) throw new Error("Network response was not ok");
-      const data = await response.json();
-      setServices(data);
+      // 1. Fetch the initial list of services
+      const servicesResponse = await fetch("/api/services");
+      if (!servicesResponse.ok) throw new Error("Network response was not ok");
+      const servicesData = await servicesResponse.json();
 
+      // 2. Create promises to fetch decoders for each service
+      const decoderPromises = servicesData.map((service) =>
+        fetch(`/api/services/${service.id}/decoders`).then((res) => {
+          if (!res.ok) return []; // Return empty array on error for a specific service
+          return res.json();
+        })
+      );
+
+      // 3. Wait for all decoder fetches to complete
+      const allDecoders = await Promise.all(decoderPromises);
+
+      // 4. Combine the data, adding decoder arrays and counts to each service
+      const servicesWithDetails = servicesData.map((service, index) => ({
+        ...service,
+        decoders: allDecoders[index],
+        decoderCount: allDecoders[index].length,
+      }));
+
+      setServices(servicesWithDetails);
+
+      // 5. Update the selected service logic
       if (selectedService) {
-        const updatedSelectedService = data.find(
+        const updatedSelectedService = servicesWithDetails.find(
           (s) => s.id === selectedService.id
         );
         setSelectedService(
-          updatedSelectedService || (data.length > 0 ? data[0] : null)
+          updatedSelectedService ||
+            (servicesWithDetails.length > 0 ? servicesWithDetails[0] : null)
         );
-      } else if (data.length > 0) {
-        setSelectedService(data[0]);
+      } else if (servicesWithDetails.length > 0) {
+        setSelectedService(servicesWithDetails[0]);
       } else {
         setSelectedService(null);
       }
@@ -126,38 +153,7 @@ export default function DecodersPage() {
     refreshData();
   }, []);
 
-  useEffect(() => {
-    if (!selectedService || !selectedService.id || selectedService.decoders)
-      return;
-
-    const fetchDecodersForService = async () => {
-      try {
-        const response = await fetch(
-          `/api/services/${selectedService.id}/decoders`
-        );
-        if (!response.ok) throw new Error("Network response was not ok");
-        const decoderData = await response.json();
-
-        // --- BUG FIX: Use a functional update to prevent stale state ---
-        setServices((currentServices) =>
-          currentServices.map((s) =>
-            s.id === selectedService.id ? { ...s, decoders: decoderData } : s
-          )
-        );
-
-        setSelectedService((currentService) => ({
-          ...currentService,
-          decoders: decoderData,
-        }));
-      } catch (error) {
-        console.error(
-          `Failed to fetch decoders for service ${selectedService.id}:`,
-          error
-        );
-      }
-    };
-    fetchDecodersForService();
-  }, [selectedService?.id]);
+  // This useEffect is no longer needed as refreshData now fetches everything.
 
   const handleSelectService = (service) => setSelectedService(service);
   const handleCreateService = () => setIsCreateServicePanelOpen(true);
@@ -169,39 +165,52 @@ export default function DecodersPage() {
     setEditingDecoder(null);
     setIsEditPanelOpen(true);
   };
-  const handleDeleteDecoder = async (decoderId) => {
+
+  const handleDeleteDecoder = async () => {
+    if (!decoderToDelete) return;
     try {
-      const response = await fetch(`/api/decoders/${decoderId}`, {
+      const response = await fetch(`/api/decoders/${decoderToDelete.id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete decoder");
       await refreshData();
     } catch (error) {
       console.error(error);
+    } finally {
+      setDecoderToDelete(null);
     }
   };
 
-  const handleDeleteService = async (serviceId) => {
+  const handleDeleteService = async () => {
+    if (!serviceToDelete) return;
     try {
-      const response = await fetch(`/api/services/${serviceId}`, {
+      const response = await fetch(`/api/services/${serviceToDelete.id}`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete service");
-      setServiceToDelete(null); // Close modal
-      await refreshData(); // Refresh the list
+      await refreshData();
     } catch (error) {
       console.error(error);
+    } finally {
       setServiceToDelete(null);
     }
   };
 
   return (
     <>
-      <DeleteServiceModal
+      <DeleteConfirmationModal
+        title="Delete Service"
+        name={serviceToDelete?.name}
         isOpen={!!serviceToDelete}
         onClose={() => setServiceToDelete(null)}
         onDelete={handleDeleteService}
-        service={serviceToDelete}
+      />
+      <DeleteConfirmationModal
+        title="Delete Decoder"
+        name={decoderToDelete?.name}
+        isOpen={!!decoderToDelete}
+        onClose={() => setDecoderToDelete(null)}
+        onDelete={handleDeleteDecoder}
       />
       <div className="flex flex-col h-full space-y-8">
         <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -258,13 +267,13 @@ export default function DecodersPage() {
                     onSelect={handleSelectService}
                     isLoading={isLoading}
                     onCreateService={handleCreateService}
-                    onDeleteService={setServiceToDelete} // Pass the function to open the modal
+                    onDeleteService={setServiceToDelete}
                   />
                   <DecoderDetail
                     service={selectedService}
                     onEditDecoder={handleEditDecoder}
                     onCreateDecoder={handleCreateDecoder}
-                    onDeleteDecoder={handleDeleteDecoder}
+                    onDeleteDecoder={setDecoderToDelete}
                     onUpdate={refreshData}
                   />
                 </div>

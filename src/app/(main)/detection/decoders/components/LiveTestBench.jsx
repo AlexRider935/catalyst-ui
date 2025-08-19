@@ -9,10 +9,19 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Play, // Replaced Sparkles for a more professional look
+  Play,
   Archive,
   ShieldAlert,
+  Terminal,
+  Search, // For pivot actions
 } from "lucide-react";
+
+// --- Helper to identify interesting fields for pivot actions ---
+const isInterestingField = (key) => {
+  const interestingKeys = ["ip", "host", "user", "id", "arn"];
+  const lowerKey = key.toLowerCase();
+  return interestingKeys.some((k) => lowerKey.includes(k));
+};
 
 // This is the self-contained component for the Test Bench UI and logic
 export default function LiveTestBench() {
@@ -127,7 +136,7 @@ export default function LiveTestBench() {
           <div className="p-4 flex-1 overflow-y-auto">
             {displayedResults.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
-                <TestTube size={48} className="mb-4 opacity-50" />
+                <Terminal size={48} className="mb-4 opacity-50" />
                 <p className="font-medium">Results will stream in here</p>
                 <p className="text-sm">
                   Paste logs on the left and click "Process"
@@ -210,17 +219,36 @@ const ResultCard = ({ result }) => {
               <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
                 Extracted Fields
               </p>
-              <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1.5 text-xs bg-white p-3 rounded-md border border-slate-200/80">
-                {Object.entries(result.data).map(([key, value]) => (
-                  <Fragment key={key}>
-                    <dt className="font-medium text-slate-500 text-right">
-                      {key}
-                    </dt>
-                    <dd className="font-mono text-slate-800">
-                      {String(value)}
-                    </dd>
-                  </Fragment>
-                ))}
+              <div className="bg-white p-3 rounded-md border border-slate-200/80">
+                <table className="w-full text-xs">
+                  <tbody>
+                    {Object.entries(result.data).map(([key, value]) => (
+                      <tr key={key} className="group">
+                        <td className="p-1.5 font-medium text-slate-500 text-right w-1/4 align-top">
+                          {key}
+                        </td>
+                        <td className="p-1.5 font-mono text-slate-800 w-3/4">
+                          <span
+                            className={clsx(
+                              isInterestingField(key) &&
+                                "text-blue-600 font-medium"
+                            )}>
+                            {String(value)}
+                          </span>
+                        </td>
+                        <td className="p-1.5 w-10">
+                          {isInterestingField(key) && (
+                            <button
+                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 transition-opacity"
+                              title={`Search for ${value}`}>
+                              <Search size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
               <div className="mt-4 pt-4 border-t border-slate-200/80 flex items-center gap-2">
                 <button className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white rounded-md shadow-sm border border-slate-300 hover:bg-slate-50 transition-colors">
