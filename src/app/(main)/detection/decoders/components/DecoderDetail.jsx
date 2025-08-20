@@ -41,10 +41,8 @@ export default function DecoderDetail({
   onUpdate,
 }) {
   const [copiedStates, setCopiedStates] = useState({});
-  // --- FIX: Internal state for optimistic updates ---
   const [internalDecoders, setInternalDecoders] = useState(service?.decoders);
 
-  // --- FIX: Effect to sync internal state with props from parent ---
   useEffect(() => {
     setInternalDecoders(service?.decoders);
   }, [service]);
@@ -59,11 +57,8 @@ export default function DecoderDetail({
     });
   };
 
-  // --- FIX: Re-architected with optimistic updates and rollback ---
   const handleStatusChange = async (decoderToUpdate, newStatus) => {
     const originalDecoders = internalDecoders;
-
-    // 1. Optimistically update the UI for instant feedback
     setInternalDecoders(
       originalDecoders.map((d) =>
         d.id === decoderToUpdate.id ? { ...d, isActive: newStatus } : d
@@ -71,7 +66,6 @@ export default function DecoderDetail({
     );
 
     try {
-      // 2. Construct the payload for the API
       const payload = {
         name: decoderToUpdate.name,
         log_example: decoderToUpdate.log_example,
@@ -90,13 +84,11 @@ export default function DecoderDetail({
         throw new Error(errorData.message || "Failed to update decoder status");
       }
 
-      // 3. On success, tell the parent to refresh its master list of data
       if (onUpdate) {
         onUpdate();
       }
     } catch (error) {
       console.error("Update Error:", error.message);
-      // 4. On failure, roll back the UI to its original state
       setInternalDecoders(originalDecoders);
     }
   };
@@ -119,7 +111,7 @@ export default function DecoderDetail({
 
   return (
     <section className="flex-1 h-full flex flex-col bg-slate-50/50 rounded-r-xl">
-      <div className="p-4 sm:p-6 border-b border-slate-200 flex-shrink-0">
+      <div className="p-4 sm:p-6 border-b border-slate-200 flex-shrink-0 bg-white rounded-tr-xl">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">
@@ -148,20 +140,20 @@ export default function DecoderDetail({
         {internalDecoders === undefined ? (
           <DecoderSkeleton />
         ) : internalDecoders.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {internalDecoders.map((decoder) => (
               <Disclosure
                 key={decoder.id}
                 as="div"
-                className="group bg-white border border-slate-200 rounded-lg shadow-sm transition-all hover:border-slate-300 hover:shadow-md">
+                className="group bg-white border border-slate-200/80 rounded-xl shadow-sm transition-all hover:shadow-lg hover:border-slate-300">
                 {({ open }) => (
                   <>
                     <div className="flex w-full items-center justify-between p-4 text-left">
                       <Disclosure.Button
                         as="div"
                         className="flex flex-1 items-center gap-4 cursor-pointer">
-                        <FileCode2 className="h-8 w-8 text-slate-400 flex-shrink-0" />
-                        <div>
+                        <FileCode2 className="h-8 w-8 text-blue-500 flex-shrink-0" />
+                        <div className="flex-grow">
                           <h3 className="text-base font-semibold text-slate-800">
                             {decoder.name}
                           </h3>
@@ -173,7 +165,7 @@ export default function DecoderDetail({
                           )}
                         />
                       </Disclosure.Button>
-                      <div className="flex items-center gap-2 pl-4">
+                      <div className="flex items-center gap-3 pl-4">
                         <StatusToggle
                           isActive={decoder.isActive}
                           onChange={(newStatus) =>
@@ -183,7 +175,7 @@ export default function DecoderDetail({
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-end gap-1">
                           <button
                             onClick={() => onEditDecoder(decoder)}
-                            className="p-2 rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                            className="p-2 rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                             title="Edit Decoder">
                             <Pencil size={16} />
                           </button>
@@ -198,19 +190,19 @@ export default function DecoderDetail({
                     </div>
                     <Transition
                       as={Fragment}
-                      enter="transition duration-100 ease-out"
-                      enterFrom="transform scale-95 opacity-0"
-                      enterTo="transform scale-100 opacity-100"
-                      leave="transition duration-75 ease-out"
-                      leaveFrom="transform scale-100 opacity-100"
-                      leaveTo="transform scale-95 opacity-0">
-                      <Disclosure.Panel className="px-4 pb-4 pt-2 border-t border-slate-200">
-                        <div className="pl-12 space-y-4">
+                      enter="transition-all duration-200 ease-out"
+                      enterFrom="transform scale-95 opacity-0 max-h-0"
+                      enterTo="transform scale-100 opacity-100 max-h-96"
+                      leave="transition-all duration-150 ease-in"
+                      leaveFrom="transform scale-100 opacity-100 max-h-96"
+                      leaveTo="transform scale-95 opacity-0 max-h-0">
+                      <Disclosure.Panel className="px-6 pb-6 pt-4 border-t border-slate-200/80">
+                        <div className="space-y-4">
                           <div>
                             <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                               Example Log
                             </p>
-                            <pre className="mt-1 w-full overflow-x-auto rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200 whitespace-pre-wrap break-all">
+                            <pre className="mt-2 w-full overflow-x-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-800 border border-slate-200 whitespace-pre-wrap break-all font-mono">
                               <code>{decoder.log_example}</code>
                             </pre>
                           </div>
@@ -223,7 +215,7 @@ export default function DecoderDetail({
                                 onClick={() =>
                                   handleCopy(decoder.regex, decoder.id)
                                 }
-                                className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors">
+                                className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1.5 transition-colors">
                                 {copiedStates[decoder.id] ? (
                                   <Check size={14} className="text-green-500" />
                                 ) : (
@@ -232,7 +224,7 @@ export default function DecoderDetail({
                                 {copiedStates[decoder.id] ? "Copied!" : "Copy"}
                               </button>
                             </div>
-                            <pre className="mt-1 w-full overflow-x-auto rounded-md bg-slate-50 p-2 text-xs text-slate-700 border border-slate-200 whitespace-pre-wrap break-all">
+                            <pre className="mt-2 w-full overflow-x-auto rounded-lg bg-slate-50 p-3 text-sm text-slate-800 border border-slate-200 whitespace-pre-wrap break-all font-mono">
                               <code>{decoder.regex}</code>
                             </pre>
                           </div>
@@ -245,13 +237,13 @@ export default function DecoderDetail({
             ))}
           </div>
         ) : (
-          <div className="text-center py-16">
+          <div className="text-center py-20 px-6 bg-white rounded-lg border-2 border-dashed border-slate-200">
             <FileCode2 className="mx-auto h-12 w-12 text-slate-400" />
-            <h3 className="mt-2 text-sm font-semibold text-slate-900">
+            <h3 className="mt-4 text-lg font-semibold text-slate-800">
               No Decoders Found
             </h3>
-            <p className="mt-1 text-sm text-slate-500">
-              Click "Create Decoder" to add the first one for this service.
+            <p className="mt-2 text-sm text-slate-500">
+              Get started by creating the first decoder for the '{service.name}' service.
             </p>
           </div>
         )}

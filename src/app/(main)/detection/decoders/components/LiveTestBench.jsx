@@ -170,11 +170,11 @@ const ResultCard = ({ result }) => {
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       className={clsx(
-        "bg-white rounded-lg border transition-all overflow-hidden",
-        isSuccess ? "border-slate-200" : "border-red-200/50 bg-red-50/20"
+        "bg-white rounded-lg border transition-all overflow-hidden shadow-sm hover:shadow-md",
+        isSuccess ? "border-slate-200/80" : "border-red-300/50 bg-red-50/30"
       )}>
       <div
-        className={clsx("flex p-3", isSuccess && "cursor-pointer")}
+        className={clsx("flex items-start p-4", isSuccess && "cursor-pointer")}
         onClick={() => isSuccess && setIsExpanded(!isExpanded)}>
         <div className="flex-shrink-0 pt-0.5">
           {isSuccess ? (
@@ -183,17 +183,18 @@ const ResultCard = ({ result }) => {
             <XCircle className="h-5 w-5 text-red-500" />
           )}
         </div>
-        <div className="ml-3 flex-1 min-w-0">
-          <p className="font-mono text-xs text-slate-700 pr-4 truncate">
+        <div className="ml-4 flex-1 min-w-0">
+          <p className="font-mono text-xs text-slate-800 pr-4 break-all">
             {result.log}
           </p>
           {isSuccess && (
-            <div className="mt-1.5 flex items-center justify-between">
+            <div className="mt-2 flex items-center justify-between">
               <div className="text-xs">
-                <span className="font-semibold text-slate-800">
+                <span className="font-semibold bg-blue-100 text-blue-800 px-2 py-1 rounded-md">
                   {result.decoder}
                 </span>
-                <span className="text-slate-500"> / {result.service}</span>
+                <span className="text-slate-500 mx-1">/</span>
+                <span className="font-medium text-slate-600">{result.service}</span>
               </div>
               <div className="flex items-center gap-2">
                 <ChevronDown
@@ -213,48 +214,44 @@ const ResultCard = ({ result }) => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
             className="overflow-hidden">
-            <div className="border-t border-slate-200/80 p-4 bg-slate-50/50">
-              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+            <div className="border-t border-slate-200/80 p-4 bg-slate-50/70">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
                 Extracted Fields
               </p>
-              <div className="bg-white p-3 rounded-md border border-slate-200/80">
-                <table className="w-full text-xs">
-                  <tbody>
-                    {Object.entries(result.data).map(([key, value]) => (
-                      <tr key={key} className="group">
-                        <td className="p-1.5 font-medium text-slate-500 text-right w-1/4 align-top">
-                          {key}
-                        </td>
-                        <td className="p-1.5 font-mono text-slate-800 w-3/4">
-                          <span
-                            className={clsx(
-                              isInterestingField(key) &&
-                                "text-blue-600 font-medium"
-                            )}>
-                            {String(value)}
-                          </span>
-                        </td>
-                        <td className="p-1.5 w-10">
-                          {isInterestingField(key) && (
-                            <button
-                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 transition-opacity"
-                              title={`Search for ${value}`}>
-                              <Search size={14} />
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-2">
+                {Object.entries(result.data).map(([key, value]) => (
+                  <div key={key} className="grid grid-cols-3 gap-4 items-start group">
+                    <div className="text-right font-medium text-slate-500 text-xs py-1">
+                      {key}
+                    </div>
+                    <div className="col-span-2 flex items-center">
+                      <div className="font-mono text-xs bg-white border border-slate-200/80 rounded-md px-3 py-1 w-full break-words">
+                        <span
+                          className={clsx(
+                            isInterestingField(key) &&
+                              "text-blue-600 font-semibold"
+                          )}>
+                          {String(value)}
+                        </span>
+                      </div>
+                      {isInterestingField(key) && (
+                        <button
+                          className="ml-2 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 transition-opacity"
+                          title={`Search for ${value}`}>
+                          <Search size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="mt-4 pt-4 border-t border-slate-200/80 flex items-center gap-2">
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white rounded-md shadow-sm border border-slate-300 hover:bg-slate-50 transition-colors">
+              <div className="mt-5 pt-4 border-t border-slate-200/80 flex items-center gap-3">
+                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 bg-white rounded-lg shadow-sm border border-slate-300 hover:bg-slate-50 transition-colors">
                   <Archive size={14} /> Save as Evidence
                 </button>
-                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 rounded-md shadow-sm hover:bg-slate-700 transition-colors">
+                <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-white bg-slate-800 rounded-lg shadow-sm hover:bg-slate-700 transition-colors">
                   <ShieldAlert size={14} /> Escalate to Case
                 </button>
               </div>

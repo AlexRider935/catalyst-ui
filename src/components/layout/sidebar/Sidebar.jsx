@@ -1,12 +1,12 @@
 "use client";
 
-import { createContext, useState } from "react";
+import { useState } from "react";
+import { SidebarContext } from "./SidebarContext";
 import NavLinks from "./components/Navlinks";
 import UserProfile from "./components/UserProfile";
 import WorkspaceSwitcher from "./components/WorkspaceSwitcher";
 
-// The context now includes the navigation handler and current path.
-export const SidebarContext = createContext();
+
 
 // The component now accepts the props passed down from the layout.
 export default function Sidebar({ currentPath }) {
