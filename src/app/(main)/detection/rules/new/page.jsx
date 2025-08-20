@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, Fragment, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, Loader2, Info, X, CheckCircle } from "lucide-react";
-import { Listbox, Transition, Popover } from "@headlessui/react";
+import { ChevronLeft, Loader2, Info, CheckCircle, X } from "lucide-react";
+import { Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- Helper Components ---
+// --- Reusable Components ---
 
 const FormCard = ({ title, description, children }) => (
   <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm">
@@ -46,11 +46,26 @@ const InfoPopover = ({ content }) => (
   </Popover>
 );
 
+// --- Helper Function to parse regex ---
+function parseFieldsFromRegex(regexString) {
+  if (!regexString) return [];
+  const namedCaptureGroupRegex = /\(\?<([a-zA-Z0-9_]+)>/g;
+  const fields = new Set(); // Use a Set to handle duplicates automatically
+  let match;
+  while ((match = namedCaptureGroupRegex.exec(regexString)) !== null) {
+    fields.add(match[1]);
+  }
+  return Array.from(fields);
+}
+
 // --- Main New Rule Page Component ---
 
 export default function NewRulePage() {
   const router = useRouter();
   const [ruleGroups, setRuleGroups] = useState([]);
+  const [services, setServices] = useState([]);
+  const [availableFields, setAvailableFields] = useState([]);
+  const [isFetchingFields, setIsFetchingFields] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({
     show: false,
@@ -63,27 +78,25 @@ export default function NewRulePage() {
     groupId: "",
     detectionLogic: "",
     severity: "Medium",
-    source: "",
+    source: "", // This will now be set by the service dropdown
     lastModifiedBy: "Director",
-    // Advanced Fields
-    mitreTactic: "TA0002", // Default: Execution
     mitreTechnique: "",
     complianceReference: "",
   });
 
-  const MITRE_TACTICS = [
-    { id: "TA0001", name: "Initial Access" },
-    { id: "TA0002", name: "Execution" },
-    { id: "TA0003", name: "Persistence" },
-    { id: "TA0005", name: "Defense Evasion" },
-    { id: "TA0007", name: "Discovery" },
-    { id: "TA0011", name: "Command and Control" },
-    { id: "TA0040", name: "Impact" },
-  ];
+  const detectionLogicRef = useRef(null);
 
+  // --- DATA FETCHING ---
   useEffect(() => {
-    const fetchRuleGroups = async () => {
+    const fetchInitialData = async () => {
       try {
+        // Fetch services from the API
+        const servicesRes = await fetch("/api/services");
+        if (!servicesRes.ok) throw new Error("Failed to fetch services");
+        const servicesData = await servicesRes.json();
+        setServices(servicesData);
+
+        // Mock fetching for rule groups
         const mockGroups = [
           { id: "d8f8b8e8-4f4c-4f4c-8f8b-8e8d8f8b8e8d", name: "General" },
           { id: "a1b2c3d4-e5f6-a1b2-c3d4-e5f6a1b2c3d4", name: "Compliance" },
@@ -95,15 +108,13 @@ export default function NewRulePage() {
         }
       } catch (err) {
         console.error(err);
-        showNotification(
-          "Could not load rule groups. Please try again later.",
-          "error"
-        );
+        showNotification("Could not load initial data.", "error");
       }
     };
-    fetchRuleGroups();
+    fetchInitialData();
   }, []);
 
+  // --- HANDLERS ---
   const showNotification = (message, type) => {
     setNotification({ show: true, message, type });
     setTimeout(() => {
@@ -116,46 +127,97 @@ export default function NewRulePage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setIsSubmitting(true);
-  setNotification({ show: false, message: "", type: "success" });
+  const handleServiceChange = async (e) => {
+    const serviceId = e.target.value;
+    const selectedService = services.find((s) => s.id === serviceId);
 
-  // Construct a payload with only the fields to be saved to the database.
-  const payload = {
-    name: formData.name,
-    description: formData.description,
-    groupId: formData.groupId,
-    detectionLogic: formData.detectionLogic,
-    severity: formData.severity,
-    source: formData.source,
-    lastModifiedBy: formData.lastModifiedBy,
+    setFormData((prev) => ({
+      ...prev,
+      source: selectedService ? selectedService.name : "",
+    }));
+    setAvailableFields([]);
+
+    if (selectedService) {
+      setIsFetchingFields(true);
+      try {
+        const decodersRes = await fetch(`/api/services/${serviceId}/decoders`);
+        if (!decodersRes.ok) throw new Error("Failed to fetch decoders");
+        const decodersData = await decodersRes.json();
+
+        const fields = new Set();
+        decodersData.forEach((decoder) => {
+          parseFieldsFromRegex(decoder.regex).forEach((field) =>
+            fields.add(field)
+          );
+        });
+        setAvailableFields(Array.from(fields).sort());
+      } catch (err) {
+        console.error(err);
+        showNotification("Could not load fields for this service.", "error");
+      } finally {
+        setIsFetchingFields(false);
+      }
+    }
   };
 
-  try {
-    const response = await fetch("/api/rules", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload), // Send the curated payload
-    });
+  const handleInsertField = (fieldName) => {
+    const textarea = detectionLogicRef.current;
+    if (!textarea) return;
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to create rule");
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const newText = `${text.substring(0, start)} ${fieldName} ${text.substring(
+      end
+    )}`;
+
+    setFormData((prev) => ({ ...prev, detectionLogic: newText }));
+
+    // Focus and move cursor after the inserted text
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd =
+        start + fieldName.length + 2;
+    }, 0);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const payload = {
+      name: formData.name,
+      description: formData.description,
+      groupId: formData.groupId,
+      detectionLogic: formData.detectionLogic,
+      severity: formData.severity,
+      source: formData.source,
+      lastModifiedBy: formData.lastModifiedBy,
+    };
+
+    try {
+      const response = await fetch("/api/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create rule");
+      }
+
+      showNotification("Rule created successfully.", "success");
+      setTimeout(() => router.push("/detection/rules"), 1000);
+    } catch (err) {
+      console.error(err);
+      showNotification(err.message, "error");
+      setIsSubmitting(false);
     }
-
-    showNotification("Rule created successfully.", "success");
-    setTimeout(() => router.push("/detection/rules"), 1000);
-  } catch (err) {
-    console.error(err);
-    showNotification(err.message, "error");
-    setIsSubmitting(false);
-  }
-};
+  };
 
   return (
     <>
-      {/* Notification Toast */}
       <AnimatePresence>
         {notification.show && (
           <motion.div
@@ -188,7 +250,7 @@ const handleSubmit = async (e) => {
         )}
       </AnimatePresence>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-6">
           <Link
             href="/detection/rules"
@@ -198,199 +260,205 @@ const handleSubmit = async (e) => {
           </Link>
         </div>
 
-        <div className="flex items-baseline justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-800">
-              New Detection Rule
-            </h1>
-            <p className="mt-1 text-slate-500">
-              Construct a new rule for the security intelligence engine.
-            </p>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold text-slate-800">
+          New Detection Rule
+        </h1>
+        <p className="mt-1 text-slate-500">
+          Construct a new rule for the security intelligence engine.
+        </p>
 
-        <form onSubmit={handleSubmit} className="mt-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Form Fields */}
-            <div className="lg:col-span-2 space-y-8">
-              <FormCard
-                title="Rule Identity"
-                description="Core metadata that defines and categorizes the rule.">
-                <div className="space-y-6">
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="name"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Rule Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label
-                      htmlFor="description"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Description
-                    </label>
-                    <textarea
-                      id="description"
-                      name="description"
-                      rows={3}
-                      value={formData.description}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-                </div>
-              </FormCard>
-
-              <FormCard
-                title="Detection Logic"
-                description="The query and severity that triggers an alert.">
-                <div className="space-y-6">
-                  <div>
-                    <label
-                      htmlFor="detectionLogic"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Detection Query
-                    </label>
-                    <textarea
-                      id="detectionLogic"
-                      name="detectionLogic"
-                      rows={8}
-                      value={formData.detectionLogic}
-                      onChange={handleInputChange}
-                      required
-                      className="block w-full rounded-md border-slate-300 bg-slate-50 font-mono text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                      placeholder="level >= 10 AND src_ip='192.168.1.100'"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="severity"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Severity
-                    </label>
-                    <select
-                      id="severity"
-                      name="severity"
-                      value={formData.severity}
-                      onChange={handleInputChange}
-                      required
-                      className="block w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                      <option>Low</option>
-                      <option>Medium</option>
-                      <option>High</option>
-                      <option>Critical</option>
-                    </select>
-                  </div>
-                </div>
-              </FormCard>
+        <form onSubmit={handleSubmit} className="mt-8 space-y-8">
+          <FormCard
+            title="Rule Identity"
+            description="Core metadata that defines and categorizes the rule.">
+            <div className="space-y-6">
+              <div>
+                <label
+                  htmlFor="name"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Rule Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="description"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  name="description"
+                  rows={3}
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
             </div>
+          </FormCard>
 
-            {/* Sidebar for Context & Compliance */}
-            <div className="lg:col-span-1 space-y-8">
-              <FormCard title="Context & Compliance">
-                <div className="space-y-6">
-                  <div>
-                    <label
-                      htmlFor="groupId"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Rule Group
-                    </label>
-                    <select
-                      id="groupId"
-                      name="groupId"
-                      value={formData.groupId}
-                      onChange={handleInputChange}
-                      required
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                      {ruleGroups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
+          <FormCard
+            title="Detection Logic"
+            description="The query and severity that triggers an alert.">
+            <div className="space-y-6">
+              <div>
+                <label
+                  htmlFor="source"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Data Source
+                </label>
+                <select
+                  id="source"
+                  name="source"
+                  onChange={handleServiceChange}
+                  required
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                  <option value="">Select a service...</option>
+                  {services.map((service) => (
+                    <option key={service.id} value={service.id}>
+                      {service.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="detectionLogic"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Detection Query
+                </label>
+                <textarea
+                  ref={detectionLogicRef}
+                  id="detectionLogic"
+                  name="detectionLogic"
+                  rows={8}
+                  value={formData.detectionLogic}
+                  onChange={handleInputChange}
+                  required
+                  className="block w-full rounded-md border-slate-300 bg-slate-50 font-mono text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="level >= 10 AND src_ip='192.168.1.100'"
+                />
+              </div>
+
+              {(isFetchingFields || availableFields.length > 0) && (
+                <div className="p-3 bg-slate-50 rounded-md border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-600 mb-2">
+                    Available Fields
+                  </p>
+                  {isFetchingFields ? (
+                    <div className="text-xs text-slate-400">
+                      Loading fields...
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {availableFields.map((field) => (
+                        <button
+                          key={field}
+                          type="button"
+                          onClick={() => handleInsertField(field)}
+                          className="px-2 py-1 bg-white border border-slate-300 rounded-md text-xs font-mono text-blue-600 hover:bg-blue-50 hover:border-blue-400">
+                          {field}
+                        </button>
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="source"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Data Source
-                    </label>
-                    <input
-                      type="text"
-                      id="source"
-                      name="source"
-                      value={formData.source}
-                      onChange={handleInputChange}
-                      placeholder="e.g., auth.log, cloudtrail"
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      MITRE ATT&CK® Tactic
-                      <InfoPopover content="Map this rule to a specific adversary tactic from the ATT&CK framework." />
-                    </label>
-                    <select
-                      id="mitreTactic"
-                      name="mitreTactic"
-                      value={formData.mitreTactic}
-                      onChange={handleInputChange}
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                      {MITRE_TACTICS.map((tactic) => (
-                        <option key={tactic.id} value={tactic.id}>
-                          {tactic.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="mitreTechnique"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Technique ID
-                    </label>
-                    <input
-                      type="text"
-                      id="mitreTechnique"
-                      name="mitreTechnique"
-                      value={formData.mitreTechnique}
-                      onChange={handleInputChange}
-                      placeholder="e.g., T1059.001"
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="complianceReference"
-                      className="block text-sm font-medium text-slate-700 mb-1">
-                      Compliance Reference
-                      <InfoPopover content="Link this rule to a compliance control, e.g., SOC 2 CC6.1, PCI DSS 10.2.4" />
-                    </label>
-                    <input
-                      type="text"
-                      id="complianceReference"
-                      name="complianceReference"
-                      value={formData.complianceReference}
-                      onChange={handleInputChange}
-                      placeholder="e.g., SOC 2 CC6.1"
-                      className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
+                    </div>
+                  )}
                 </div>
-              </FormCard>
+              )}
+
+              <div>
+                <label
+                  htmlFor="severity"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Severity
+                </label>
+                <select
+                  id="severity"
+                  name="severity"
+                  value={formData.severity}
+                  onChange={handleInputChange}
+                  required
+                  className="block w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                  <option>Low</option>
+                  <option>Medium</option>
+                  <option>High</option>
+                  <option>Critical</option>
+                </select>
+              </div>
             </div>
-          </div>
-          <div className="mt-8 flex justify-end gap-3">
+          </FormCard>
+
+          <FormCard
+            title="Context & Framework Alignment"
+            description="Optional fields to map this rule to industry standards.">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label
+                  htmlFor="groupId"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Rule Group
+                </label>
+                <select
+                  id="groupId"
+                  name="groupId"
+                  value={formData.groupId}
+                  onChange={handleInputChange}
+                  required
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                  {ruleGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  htmlFor="mitreTechnique"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  MITRE ATT&CK® Technique
+                  <InfoPopover content="Map this rule to a specific adversary technique from the ATT&CK framework." />
+                </label>
+                <input
+                  type="text"
+                  id="mitreTechnique"
+                  name="mitreTechnique"
+                  value={formData.mitreTechnique}
+                  onChange={handleInputChange}
+                  placeholder="e.g., T1059.001"
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="complianceReference"
+                  className="block text-sm font-medium text-slate-700 mb-1">
+                  Compliance Reference
+                  <InfoPopover content="Link this rule to a compliance control, e.g., SOC 2 CC6.1, PCI DSS 10.2.4" />
+                </label>
+                <input
+                  type="text"
+                  id="complianceReference"
+                  name="complianceReference"
+                  value={formData.complianceReference}
+                  onChange={handleInputChange}
+                  placeholder="e.g., SOC 2 CC6.1, PCI DSS 10.2.4"
+                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+          </FormCard>
+
+          <div className="flex justify-end gap-3">
             <Link href="/detection/rules">
               <button
                 type="button"

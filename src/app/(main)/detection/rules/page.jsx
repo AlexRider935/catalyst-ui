@@ -1,484 +1,349 @@
+
+
 "use client";
 
-import { useState, useEffect, Fragment, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Fragment, useEffect } from "react";
+import {
+  Plus,
+  Search,
+  Filter,
+  MoreVertical,
+  Edit,
+  Trash2,
+  AlertTriangle,
+} from "lucide-react";
+import { Dialog, Switch, Transition } from "@headlessui/react";
 import Link from "next/link";
-import { ChevronLeft, Loader2, Info, CheckCircle, X } from "lucide-react";
-import { Popover, Transition } from "@headlessui/react";
 import clsx from "clsx";
 import { motion, AnimatePresence } from "framer-motion";
 
 // --- Reusable Components ---
 
-const FormCard = ({ title, description, children }) => (
-  <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm">
-    <div className="p-6 border-b border-slate-200/80">
-      <h2 className="text-base font-semibold text-slate-800">{title}</h2>
-      {description && (
-        <p className="mt-1 text-sm text-slate-500">{description}</p>
-      )}
-    </div>
-    <div className="p-6">{children}</div>
+const SettingsCard = ({ children }) => (
+  <div className="rounded-xl border border-slate-200/80 bg-white shadow-sm flex flex-col h-full">
+    {children}
   </div>
 );
 
-const InfoPopover = ({ content }) => (
-  <Popover className="relative inline-flex">
-    <Popover.Button className="ml-1.5 text-slate-400 hover:text-slate-600 outline-none">
-      <Info size={14} />
-    </Popover.Button>
-    <Transition
-      as={Fragment}
-      enter="transition ease-out duration-200"
-      enterFrom="opacity-0 translate-y-1"
-      enterTo="opacity-100 translate-y-0"
-      leave="transition ease-in duration-150"
-      leaveFrom="opacity-100 translate-y-0"
-      leaveTo="opacity-0 translate-y-1">
-      <Popover.Panel className="absolute bottom-full left-1/2 z-10 mb-2 w-64 -translate-x-1/2 transform px-4 sm:px-0">
-        <div className="overflow-hidden rounded-lg shadow-lg ring-1 ring-black ring-opacity-5">
-          <div className="relative bg-white p-3">
-            <p className="text-sm text-slate-600">{content}</p>
-          </div>
+const SeverityBadge = ({ severity }) => {
+  const severityMap = {
+    Critical: "bg-red-100 text-red-700",
+    High: "bg-amber-100 text-amber-700",
+    Medium: "bg-yellow-100 text-yellow-700",
+    Low: "bg-blue-100 text-blue-700",
+  };
+  const colorClass = severityMap[severity] || "bg-slate-100 text-slate-700";
+  return (
+    <span
+      className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold ${colorClass}`}
+    >
+      {severity}
+    </span>
+  );
+};
+
+// --- Delete Confirmation Modal ---
+
+const DeleteConfirmationModal = ({ rule, isOpen, onClose, onDelete }) => (
+  <Transition appear show={isOpen} as={Fragment}>
+    <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Transition.Child
+        as={Fragment}
+        enter="ease-out duration-300"
+        enterFrom="opacity-0"
+        enterTo="opacity-100"
+        leave="ease-in duration-200"
+        leaveFrom="opacity-100"
+        leaveTo="opacity-0"
+      >
+        <div className="fixed inset-0 bg-black/30" />
+      </Transition.Child>
+
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4 text-center">
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0 scale-95"
+            enterTo="opacity-100 scale-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100 scale-100"
+            leaveTo="opacity-0 scale-95"
+          >
+            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <div className="sm:flex sm:items-start">
+                <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                  <AlertTriangle
+                    className="h-6 w-6 text-red-600"
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                  <Dialog.Title
+                    as="h3"
+                    className="text-base font-semibold leading-6 text-slate-900"
+                  >
+                    Delete Rule
+                  </Dialog.Title>
+                  <div className="mt-2">
+                    <p className="text-sm text-slate-500">
+                      Are you sure you want to delete the rule{" "}
+                      <span className="font-bold text-slate-700">
+                        {rule?.name}
+                      </span>
+                      ? This action cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
+                  onClick={() => onDelete(rule?.id)}
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto"
+                  onClick={onClose}
+                >
+                  Cancel
+                </button>
+              </div>
+            </Dialog.Panel>
+          </Transition.Child>
         </div>
-      </Popover.Panel>
-    </Transition>
-  </Popover>
+      </div>
+    </Dialog>
+  </Transition>
 );
 
-// --- Helper Function to parse regex ---
-function parseFieldsFromRegex(regexString) {
-  if (!regexString) return [];
-  const namedCaptureGroupRegex = /\(\?<([a-zA-Z0-9_]+)>/g;
-  const fields = new Set(); // Use a Set to handle duplicates automatically
-  let match;
-  while ((match = namedCaptureGroupRegex.exec(regexString)) !== null) {
-    fields.add(match[1]);
-  }
-  return Array.from(fields);
-}
+// --- Main Rules Page Component ---
 
-// --- Main New Rule Page Component ---
+export default function RulesPage() {
+  const [rules, setRules] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [ruleToDelete, setRuleToDelete] = useState(null);
 
-export default function NewRulePage() {
-  const router = useRouter();
-  const [ruleGroups, setRuleGroups] = useState([]);
-  const [services, setServices] = useState([]);
-  const [availableFields, setAvailableFields] = useState([]);
-  const [isFetchingFields, setIsFetchingFields] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [notification, setNotification] = useState({
-    show: false,
-    message: "",
-    type: "success",
-  });
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    groupId: "",
-    detectionLogic: "",
-    severity: "Medium",
-    source: "", // This will now be set by the service dropdown
-    lastModifiedBy: "Director",
-    mitreTechnique: "",
-    complianceReference: "",
-  });
-
-  const detectionLogicRef = useRef(null);
-
-  // --- DATA FETCHING ---
   useEffect(() => {
-    const fetchInitialData = async () => {
+    const fetchRules = async () => {
+      setIsLoading(true);
       try {
-        // Fetch services from the API
-        const servicesRes = await fetch("/api/services");
-        if (!servicesRes.ok) throw new Error("Failed to fetch services");
-        const servicesData = await servicesRes.json();
-        setServices(servicesData);
-
-        // Mock fetching for rule groups
-        const mockGroups = [
-          { id: "d8f8b8e8-4f4c-4f4c-8f8b-8e8d8f8b8e8d", name: "General" },
-          { id: "a1b2c3d4-e5f6-a1b2-c3d4-e5f6a1b2c3d4", name: "Compliance" },
-          { id: "f0e9d8c7-b6a5-f0e9-d8c7-b6a5f0e9d8c7", name: "Threat Intel" },
-        ];
-        setRuleGroups(mockGroups);
-        if (mockGroups.length > 0) {
-          setFormData((prev) => ({ ...prev, groupId: mockGroups[0].id }));
-        }
-      } catch (err) {
-        console.error(err);
-        showNotification("Could not load initial data.", "error");
+        const response = await fetch("/api/rules");
+        if (!response.ok) throw new Error("Failed to fetch rules");
+        const data = await response.json();
+        setRules(data);
+      } catch (error) {
+        console.error("Fetch Error:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchInitialData();
+    fetchRules();
   }, []);
 
-  // --- HANDLERS ---
-  const showNotification = (message, type) => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => {
-      setNotification((prev) => ({ ...prev, show: false }));
-    }, 4000);
-  };
+  const handleStatusChange = async (ruleId, newStatus) => {
+    const originalRules = [...rules];
+    const ruleToUpdate = rules.find((r) => r.id === ruleId);
+    if (!ruleToUpdate) return;
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+    setRules(
+      rules.map((r) => (r.id === ruleId ? { ...r, isActive: newStatus } : r))
+    );
 
-  const handleServiceChange = async (e) => {
-    const serviceId = e.target.value;
-    const selectedService = services.find((s) => s.id === serviceId);
-
-    setFormData((prev) => ({
-      ...prev,
-      source: selectedService ? selectedService.name : "",
-    }));
-    setAvailableFields([]);
-
-    if (selectedService) {
-      setIsFetchingFields(true);
-      try {
-        const decodersRes = await fetch(`/api/services/${serviceId}/decoders`);
-        if (!decodersRes.ok) throw new Error("Failed to fetch decoders");
-        const decodersData = await decodersRes.json();
-
-        const fields = new Set();
-        decodersData.forEach((decoder) => {
-          parseFieldsFromRegex(decoder.regex).forEach((field) =>
-            fields.add(field)
-          );
-        });
-        setAvailableFields(Array.from(fields).sort());
-      } catch (err) {
-        console.error(err);
-        showNotification("Could not load fields for this service.", "error");
-      } finally {
-        setIsFetchingFields(false);
-      }
-    }
-  };
-
-  const handleInsertField = (fieldName) => {
-    const textarea = detectionLogicRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const newText = `${text.substring(0, start)} ${fieldName} ${text.substring(
-      end
-    )}`;
-
-    setFormData((prev) => ({ ...prev, detectionLogic: newText }));
-
-    // Focus and move cursor after the inserted text
-    setTimeout(() => {
-      textarea.focus();
-      textarea.selectionStart = textarea.selectionEnd =
-        start + fieldName.length + 2;
-    }, 0);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    const payload = {
-      name: formData.name,
-      description: formData.description,
-      groupId: formData.groupId,
-      detectionLogic: formData.detectionLogic,
-      severity: formData.severity,
-      source: formData.source,
-      lastModifiedBy: formData.lastModifiedBy,
-    };
+    const payload = { ...ruleToUpdate, isActive: newStatus };
 
     try {
-      const response = await fetch("/api/rules", {
-        method: "POST",
+      const response = await fetch(`/api/rules/${ruleId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!response.ok) throw new Error("Failed to update rule status");
+      await response.json();
+    } catch (error) {
+      console.error("Update Error:", error);
+      setRules(originalRules);
+    }
+  };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create rule");
-      }
+  const handleDeleteRule = async (ruleId) => {
+    const originalRules = [...rules];
+    setRules(rules.filter((r) => r.id !== ruleId));
+    setRuleToDelete(null);
 
-      showNotification("Rule created successfully.", "success");
-      setTimeout(() => router.push("/detection/rules"), 1000);
-    } catch (err) {
-      console.error(err);
-      showNotification(err.message, "error");
-      setIsSubmitting(false);
+    try {
+      const response = await fetch(`/api/rules/${ruleId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete rule");
+    } catch (error) {
+      console.error("Delete Error:", error);
+      setRules(originalRules);
     }
   };
 
   return (
     <>
-      <AnimatePresence>
-        {notification.show && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="fixed bottom-5 right-5 z-50">
-            <div
-              className={clsx(
-                "flex items-center gap-3 rounded-lg p-4 text-sm font-semibold shadow-2xl",
-                notification.type === "success"
-                  ? "bg-green-600 text-white"
-                  : "bg-red-600 text-white"
-              )}>
-              {notification.type === "success" ? (
-                <CheckCircle size={20} />
-              ) : (
-                <Info size={20} />
-              )}
-              {notification.message}
-              <button
-                onClick={() =>
-                  setNotification({ ...notification, show: false })
-                }
-                className="ml-4 opacity-70 hover:opacity-100">
-                <X size={18} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <Link
-            href="/detection/rules"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900">
-            <ChevronLeft size={16} />
-            Back to Rules Console
+      <DeleteConfirmationModal
+        isOpen={!!ruleToDelete}
+        onClose={() => setRuleToDelete(null)}
+        onDelete={handleDeleteRule}
+        rule={ruleToDelete}
+      />
+      <div className="flex flex-col h-full space-y-8">
+        <div className="flex-shrink-0 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">
+              Detection Rules
+            </h1>
+            <p className="mt-1 text-slate-500">
+              Manage the custom logic that powers the intelligence engine.
+            </p>
+          </div>
+          <Link href="/detection/rules/new">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-slate-900 py-2.5 px-5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+            >
+              <Plus size={18} /> New Rule
+            </button>
           </Link>
         </div>
 
-        <h1 className="text-3xl font-bold text-slate-800">
-          New Detection Rule
-        </h1>
-        <p className="mt-1 text-slate-500">
-          Construct a new rule for the security intelligence engine.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-8 space-y-8">
-          <FormCard
-            title="Rule Identity"
-            description="Core metadata that defines and categorizes the rule.">
-            <div className="space-y-6">
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Rule Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-              <div>
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={3}
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-            </div>
-          </FormCard>
-
-          <FormCard
-            title="Detection Logic"
-            description="The query and severity that triggers an alert.">
-            <div className="space-y-6">
-              <div>
-                <label
-                  htmlFor="source"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Data Source
-                </label>
-                <select
-                  id="source"
-                  name="source"
-                  onChange={handleServiceChange}
-                  required
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                  <option value="">Select a service...</option>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="detectionLogic"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Detection Query
-                </label>
-                <textarea
-                  ref={detectionLogicRef}
-                  id="detectionLogic"
-                  name="detectionLogic"
-                  rows={8}
-                  value={formData.detectionLogic}
-                  onChange={handleInputChange}
-                  required
-                  className="block w-full rounded-md border-slate-300 bg-slate-50 font-mono text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="level >= 10 AND src_ip='192.168.1.100'"
-                />
-              </div>
-
-              {(isFetchingFields || availableFields.length > 0) && (
-                <div className="p-3 bg-slate-50 rounded-md border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-600 mb-2">
-                    Available Fields
-                  </p>
-                  {isFetchingFields ? (
-                    <div className="text-xs text-slate-400">
-                      Loading fields...
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {availableFields.map((field) => (
-                        <button
-                          key={field}
-                          type="button"
-                          onClick={() => handleInsertField(field)}
-                          className="px-2 py-1 bg-white border border-slate-300 rounded-md text-xs font-mono text-blue-600 hover:bg-blue-50 hover:border-blue-400">
-                          {field}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+        <div className="flex-1 min-h-0">
+          <SettingsCard>
+            <div className="p-4 border-b border-slate-200/80 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search
+                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search by name or source..."
+                    className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-blue-500/50"
+                  />
                 </div>
-              )}
-
-              <div>
-                <label
-                  htmlFor="severity"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Severity
-                </label>
-                <select
-                  id="severity"
-                  name="severity"
-                  value={formData.severity}
-                  onChange={handleInputChange}
-                  required
-                  className="block w-full max-w-xs rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                  <option>Low</option>
-                  <option>Medium</option>
-                  <option>High</option>
-                  <option>Critical</option>
-                </select>
+                <button className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  <Filter size={16} /> Source
+                </button>
               </div>
             </div>
-          </FormCard>
+            
+            <div className="overflow-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-600">
+                      Rule Name
+                    </th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-600">
+                      Source
+                    </th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-600">
+                      Severity
+                    </th>
+                    <th className="px-6 py-3 text-left font-semibold text-slate-600">
+                      Status
+                    </th>
+                    <th className="w-24 px-6 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/80">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="text-center p-8">
+                        <p className="text-slate-500">Loading rules...</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    <AnimatePresence>
+                      {rules.map((rule) => (
+                        <motion.tr
+                          layout
+                          key={rule.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="group hover:bg-slate-50"
+                        >
+                          <td className="px-6 py-4">
+                            <p className="font-semibold text-slate-800">
+                              {rule.name}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              Version {rule.version} &middot; by{" "}
+                              {rule.lastModifiedBy || "system"}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4 font-mono text-xs text-slate-500">
+                            {rule.source}
+                          </td>
+                          <td className="px-6 py-4">
+                            <SeverityBadge severity={rule.severity} />
+                          </td>
+                          <td className="px-6 py-4">
+                            <Switch
+                              checked={rule.isActive}
+                              onChange={(newStatus) =>
+                                handleStatusChange(rule.id, newStatus)
+                              }
+                              className={clsx(
+                                "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
+                                rule.isActive
+                                  ? "bg-blue-600"
+                                  : "bg-slate-300"
+                              )}
+                            >
+                              <span
+                                className={clsx(
+                                  "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                  rule.isActive
+                                    ? "translate-x-5"
+                                    : "translate-x-0"
+                                )}
+                              />
+                            </Switch>
+                          </td>
+                          {/* --- NEW ACTION CELL --- */}
+                          <td className="px-6 py-4 text-right relative">
+                            {/* Action buttons: fade in on hover */}
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-end gap-1">
+                              <a
+                                href="#"
+                                className="p-2 rounded-md text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+                                title="Edit Rule"
+                              >
+                                <Edit size={16} />
+                              </a>
+                              <button
+                                onClick={() => setRuleToDelete(rule)}
+                                className="p-2 rounded-md text-red-500 hover:bg-red-100 hover:text-red-700"
+                                title="Delete Rule"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
 
-          <FormCard
-            title="Context & Framework Alignment"
-            description="Optional fields to map this rule to industry standards.">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label
-                  htmlFor="groupId"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Rule Group
-                </label>
-                <select
-                  id="groupId"
-                  name="groupId"
-                  value={formData.groupId}
-                  onChange={handleInputChange}
-                  required
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
-                  {ruleGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label
-                  htmlFor="mitreTechnique"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  MITRE ATT&CK® Technique
-                  <InfoPopover content="Map this rule to a specific adversary technique from the ATT&CK framework." />
-                </label>
-                <input
-                  type="text"
-                  id="mitreTechnique"
-                  name="mitreTechnique"
-                  value={formData.mitreTechnique}
-                  onChange={handleInputChange}
-                  placeholder="e.g., T1059.001"
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label
-                  htmlFor="complianceReference"
-                  className="block text-sm font-medium text-slate-700 mb-1">
-                  Compliance Reference
-                  <InfoPopover content="Link this rule to a compliance control, e.g., SOC 2 CC6.1, PCI DSS 10.2.4" />
-                </label>
-                <input
-                  type="text"
-                  id="complianceReference"
-                  name="complianceReference"
-                  value={formData.complianceReference}
-                  onChange={handleInputChange}
-                  placeholder="e.g., SOC 2 CC6.1, PCI DSS 10.2.4"
-                  className="block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-              </div>
+                            {/* More icon: fade out on hover */}
+                            <div className="absolute top-1/2 right-6 -translate-y-1/2 opacity-100 group-hover:opacity-0 transition-opacity duration-200 pointer-events-none">
+                              <MoreVertical size={16} className="text-slate-400" />
+                            </div>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </FormCard>
-
-          <div className="flex justify-end gap-3">
-            <Link href="/detection/rules">
-              <button
-                type="button"
-                className="rounded-lg border border-slate-300 bg-white py-2 px-5 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50">
-                Cancel
-              </button>
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={clsx(
-                "inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-slate-900 py-2 px-5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800",
-                "focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
-              )}>
-              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Creating Rule..." : "Create Rule"}
-            </button>
-          </div>
-        </form>
+          </SettingsCard>
+        </div>
       </div>
     </>
   );

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useContext, useState, useMemo, useEffect } from "react";
 // CORRECTED: Path updated to a relative path to resolve the build error.
-import { SidebarContext } from "../Sidebar";
+import { SidebarContext } from "../SidebarContext";
 import Link from "next/link";
 
 // --- NAVIGATION CONFIGURATION (CORRECTED & COMPLETE) ---

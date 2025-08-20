@@ -3,7 +3,7 @@
 import { Menu, Transition } from "@headlessui/react";
 import { ChevronsUpDown, Plus, Settings, Search, Check } from "lucide-react";
 import { Fragment, useContext, useState } from "react";
-import { SidebarContext } from "../Sidebar"; // Adjust this import path as needed
+import { SidebarContext } from "../SidebarContext";
 
 // --- MOCK DATA ---
 const workspaces = [
