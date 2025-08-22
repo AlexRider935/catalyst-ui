@@ -11,7 +11,6 @@ import {
   Server,
   User,
   AlertTriangle,
-  CheckCircle,
   UserCheck,
 } from "lucide-react";
 import clsx from "clsx";
@@ -37,8 +36,7 @@ const ACTION_CATALOG = {
       id: "ISOLATE_ENDPOINT",
       name: "Isolate Endpoint",
       icon: Server,
-      description:
-        "Block all network connections on an endpoint, except to this platform.",
+      description: "Block all network connections on an endpoint.",
     },
     {
       id: "DISABLE_USER",
@@ -47,7 +45,8 @@ const ACTION_CATALOG = {
       description: "Suspend a user account in the directory.",
     },
   ],
-  Control: [
+  // ✅ SAFEGUARD CATEGORY ADDED
+  Safeguards: [
     {
       id: "MANUAL_APPROVAL",
       name: "Manual Approval",
@@ -82,13 +81,14 @@ const getActionDefaults = (type) => {
       return { ...base, config: { target: "{{trigger.endpoint.hostname}}" } };
     case "DISABLE_USER":
       return { ...base, config: { target: "{{trigger.user.name}}" } };
+    // ✅ DEFAULTS FOR MANUAL APPROVAL
     case "MANUAL_APPROVAL":
       return {
         ...base,
         config: {
           approvers: "soc-leads@example.com",
           instructions:
-            "Please review the case before approving endpoint isolation.",
+            "Please review the case before approving subsequent actions.",
         },
       };
     default:
@@ -136,6 +136,7 @@ function ActionItem({ action, onRemove, onConfigChange }) {
             </div>
           </>
         );
+      // ✅ CONFIGURATION UI FOR MANUAL APPROVAL
       case "MANUAL_APPROVAL":
         return (
           <>
@@ -177,9 +178,9 @@ function ActionItem({ action, onRemove, onConfigChange }) {
                 High-Impact Action
               </h4>
               <p className="text-sm text-amber-700">
-                This is a destructive action that can impact users or systems.
-                It is strongly recommended to place a **Manual Approval** step
-                before this action in a production environment.
+                This is a destructive action. It is a compliance and security
+                best practice to place a **Manual Approval** step before this
+                action.
               </p>
             </div>
           </div>
@@ -241,14 +242,20 @@ export default function ActionsCard({
         </div>
         <div className="p-6">
           <div className="space-y-4">
-            {actions.map((action) => (
-              <ActionItem
-                key={action.id}
-                action={action}
-                onRemove={removeAction}
-                onConfigChange={handleActionConfigChange}
-              />
-            ))}
+            {actions.length > 0 ? (
+              actions.map((action) => (
+                <ActionItem
+                  key={action.id}
+                  action={action}
+                  onRemove={removeAction}
+                  onConfigChange={handleActionConfigChange}
+                />
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-slate-500">No actions defined.</p>
+              </div>
+            )}
           </div>
           <button
             type="button"
