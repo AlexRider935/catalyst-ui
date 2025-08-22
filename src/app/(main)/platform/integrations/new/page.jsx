@@ -182,27 +182,57 @@ export default function NewIntegrationWorkbench() {
     return null;
   }, [selectedTypeId]);
 
-  const handleTestConnection = async () => {
-    if (!selectedIntegration) return;
-    setTestState({ status: "testing", message: "Verifying connection..." });
-    try {
-      // This API route is responsible for taking the config and attempting
-      // a non-destructive action, like listing resources or sending a test message.
-      const response = await fetch("/api/integrations/test-connection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: selectedTypeId, config: configData }),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Test connection failed.");
+  // Replace the existing handleTest function with this corrected version.
+
+  // Replace the existing handleTest function in your integrations page with this.
+
+  const handleTest = async () => {
+    if (!menuIntegration) return;
+
+    let requestBody = null;
+    // This header is critical for the server to understand the request body.
+    const requestHeaders = { "Content-Type": "application/json" };
+
+    // When testing an email integration, prompt for a recipient address.
+    if (menuIntegration.type === "email") {
+      const testEmail = prompt(
+        "Enter the recipient email address for this test dispatch:",
+        "test@example.com"
+      );
+
+      if (!testEmail) {
+        console.log("Test dispatch cancelled by user.");
+        return;
       }
-      setTestState({
-        status: "success",
-        message: result.message || "Connection successful!",
-      });
-    } catch (error) {
-      setTestState({ status: "error", message: error.message });
+
+      // Construct and stringify the JSON payload.
+      requestBody = JSON.stringify({ testEmail });
+    }
+
+    try {
+      const response = await fetch(
+        `/api/integrations/${menuIntegration.id}/test`,
+        {
+          method: "POST",
+          headers: requestHeaders, // Ensure headers are included.
+          body: requestBody, // Ensure body is included.
+        }
+      );
+
+      const result = await response.json(); // Always try to parse the response.
+
+      if (!response.ok) {
+        // Use the specific error message from the API.
+        alert(`Test Dispatch Failed: ${result.details || result.error}`);
+        throw new Error(result.error || "Failed to send test dispatch");
+      }
+
+      alert(`Success: ${result.message}`);
+      console.log("Test dispatch triggered successfully.");
+    } catch (e) {
+      console.error("Failed to send test dispatch:", e);
+      // This catch block handles network errors or if response.json() fails.
+      alert("An unexpected error occurred. Check the console for details.");
     }
   };
 

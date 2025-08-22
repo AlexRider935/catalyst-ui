@@ -1,3 +1,4 @@
+// src/lib/db.js
 import { Pool } from 'pg';
 
 // This ensures your application will not start without a valid database connection string.
@@ -13,8 +14,10 @@ const pool = new Pool({
     // }
 });
 
-// Export a single object 'db' that contains the query method.
-// This is the standard pattern for use in Next.js.
+// Standard usage for simple queries
 export const db = {
     query: (text, params) => pool.query(text, params),
 };
+
+// Export pool as well for advanced use (like .connect())
+export { pool };
