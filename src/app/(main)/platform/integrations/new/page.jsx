@@ -1,3 +1,5 @@
+// src/app/(main)/platform/integrations/new/page.jsx
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -20,15 +22,12 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  Info,
   Lock,
-  History,
   FileText,
 } from "lucide-react";
 import clsx from "clsx";
 
-// NOTE: These are assumed to be modular form components for each service.
-// They would be updated to receive and emit configuration state.
+// Import your configuration components
 import SlackConfig from "./components/SlackConfig";
 import WebhookConfig from "./components/WebhookConfig";
 import EmailConfig from "./components/EmailConfig";
@@ -37,12 +36,8 @@ import PagerDutyConfig from "./components/PagerDutyConfig";
 import S3BucketConfig from "./components/S3BucketConfig";
 import CrowdStrikeConfig from "./components/CrowdStrikeConfig";
 import OktaConfig from "./components/OktaConfig";
-// import SplunkConfig from "./components/SplunkConfig"; // Assuming this exists
 import MSTeamsConfig from "./components/MSTeamsConfig";
 
-// --- ENHANCED INTEGRATION CATALOG ---
-// This data structure is now richer, including descriptions, tags, required scopes,
-// and a status, making it a central point for security and compliance information.
 const INTEGRATION_CATALOG = {
   "Collaboration & Notifications": [
     {
@@ -163,14 +158,13 @@ const INTEGRATION_CATALOG = {
   ],
 };
 
-// --- Main Workbench Component ---
 export default function NewIntegrationWorkbench() {
   const router = useRouter();
   const [selectedTypeId, setSelectedTypeId] = useState("slack");
   const [configData, setConfigData] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [testState, setTestState] = useState({ status: "idle", message: "" }); // idle, testing, success, error
+  const [testState, setTestState] = useState({ status: "idle", message: "" });
 
   const selectedIntegration = useMemo(() => {
     for (const category in INTEGRATION_CATALOG) {
@@ -182,75 +176,40 @@ export default function NewIntegrationWorkbench() {
     return null;
   }, [selectedTypeId]);
 
-  // Replace the existing handleTest function with this corrected version.
-
-  // Replace the existing handleTest function in your integrations page with this.
-
-  const handleTest = async () => {
-    if (!menuIntegration) return;
-
-    let requestBody = null;
-    // This header is critical for the server to understand the request body.
-    const requestHeaders = { "Content-Type": "application/json" };
-
-    // When testing an email integration, prompt for a recipient address.
-    if (menuIntegration.type === "email") {
-      const testEmail = prompt(
-        "Enter the recipient email address for this test dispatch:",
-        "test@example.com"
-      );
-
-      if (!testEmail) {
-        console.log("Test dispatch cancelled by user.");
-        return;
-      }
-
-      // Construct and stringify the JSON payload.
-      requestBody = JSON.stringify({ testEmail });
-    }
-
+  // --- THIS FUNCTION WAS MISSING ---
+  const handleTestConnection = async () => {
+    if (!selectedIntegration) return;
+    setTestState({ status: "testing", message: "Verifying connection..." });
     try {
-      const response = await fetch(
-        `/api/integrations/${menuIntegration.id}/test`,
-        {
-          method: "POST",
-          headers: requestHeaders, // Ensure headers are included.
-          body: requestBody, // Ensure body is included.
-        }
-      );
-
-      const result = await response.json(); // Always try to parse the response.
-
+      const response = await fetch("/api/integrations/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: selectedTypeId, config: configData }),
+      });
+      const result = await response.json();
       if (!response.ok) {
-        // Use the specific error message from the API.
-        alert(`Test Dispatch Failed: ${result.details || result.error}`);
-        throw new Error(result.error || "Failed to send test dispatch");
+        throw new Error(result.error || "Test connection failed.");
       }
-
-      alert(`Success: ${result.message}`);
-      console.log("Test dispatch triggered successfully.");
-    } catch (e) {
-      console.error("Failed to send test dispatch:", e);
-      // This catch block handles network errors or if response.json() fails.
-      alert("An unexpected error occurred. Check the console for details.");
+      setTestState({
+        status: "success",
+        message: result.message || "Connection successful!",
+      });
+    } catch (error) {
+      setTestState({ status: "error", message: error.message });
     }
   };
 
   const handleSave = async () => {
     if (testState.status !== "success") {
-      // In a real app, you'd show a modal or toast here.
-      console.error(
-        "Cannot save: connection must be tested successfully first."
-      );
+      alert("Cannot save: connection must be tested successfully first.");
       return;
     }
     setIsSaving(true);
     try {
       const payload = {
         type: selectedTypeId,
-        name: configData.name || selectedIntegration.name, // Fallback name
+        name: configData.name || selectedIntegration.name,
         config: configData,
-        // Add other metadata like environment, purpose, etc.
       };
       const response = await fetch("/api/integrations", {
         method: "POST",
@@ -261,11 +220,10 @@ export default function NewIntegrationWorkbench() {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to save integration");
       }
-      // Ideally, show a success toast before redirecting
       router.push("/platform/integrations");
     } catch (error) {
       console.error("Save Integration Error:", error);
-      // Show error toast
+      alert(`Save Failed: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -298,12 +256,10 @@ export default function NewIntegrationWorkbench() {
       webhook: WebhookConfig,
       crowdstrike: CrowdStrikeConfig,
       okta: OktaConfig,
-      // splunk: SplunkConfig,
       msteams: MSTeamsConfig,
     };
     const Component = components[selectedTypeId];
     if (Component) {
-      // Pass down config state and a handler to update it
       return <Component config={configData} onConfigChange={setConfigData} />;
     }
     return (
@@ -330,8 +286,7 @@ export default function NewIntegrationWorkbench() {
               New Integration
             </h1>
             <p className="text-sm text-slate-500">
-              Securely connect and configure a new service for automation and
-              response.
+              Securely connect and configure a new service.
             </p>
           </div>
         </div>
@@ -358,7 +313,6 @@ export default function NewIntegrationWorkbench() {
       </header>
       <div className="flex-1 p-6 min-h-0">
         <div className="flex h-full rounded-xl shadow-sm border border-slate-200/80 bg-white overflow-hidden">
-          {/* --- Sidebar Catalog --- */}
           <aside className="w-80 border-r border-slate-200 flex flex-col">
             <div className="p-4 border-b border-slate-200">
               <div className="relative">
@@ -387,8 +341,8 @@ export default function NewIntegrationWorkbench() {
                         <button
                           onClick={() => {
                             setSelectedTypeId(item.id);
-                            setTestState({ status: "idle", message: "" }); // Reset test state on switch
-                            setConfigData({}); // Reset config data
+                            setTestState({ status: "idle", message: "" });
+                            setConfigData({});
                           }}
                           className={clsx(
                             "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors relative",
@@ -419,8 +373,6 @@ export default function NewIntegrationWorkbench() {
               ))}
             </nav>
           </aside>
-
-          {/* --- Main Configuration Panel --- */}
           <main className="flex-1 overflow-y-auto bg-slate-50/50 relative">
             <AnimatePresence mode="wait">
               <motion.div
@@ -446,12 +398,8 @@ export default function NewIntegrationWorkbench() {
   );
 }
 
-// --- NEW: Configuration Wrapper Component ---
-// This component provides a consistent, tabbed interface for any integration,
-// separating core config from security and audit concerns.
 function IntegrationConfigWrapper({ integration, testState, children }) {
   const [activeTab, setActiveTab] = useState("config");
-
   const tabs = [
     { id: "config", label: "Configuration", icon: Puzzle },
     { id: "security", label: "Security & Scopes", icon: Lock },
@@ -480,7 +428,6 @@ function IntegrationConfigWrapper({ integration, testState, children }) {
           ))}
         </div>
       </header>
-
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         <div className="p-4 border-b border-slate-200">
           <nav className="flex items-center justify-between">
@@ -533,7 +480,6 @@ function IntegrationConfigWrapper({ integration, testState, children }) {
             </AnimatePresence>
           </nav>
         </div>
-
         <div className="p-6">
           <AnimatePresence mode="wait">
             <motion.div
@@ -565,9 +511,7 @@ function SecurityTabContent({ integration }) {
       </h3>
       <p className="text-sm text-slate-600 mb-4">
         To function correctly, this integration requires the following
-        permissions (scopes) to be granted in {integration.name}. This ensures
-        the principle of least privilege, providing only the necessary access to
-        perform its duties.
+        permissions (scopes) to be granted in {integration.name}.
       </p>
       <ul className="space-y-2 text-sm list-none bg-slate-50 border border-slate-200 rounded-lg p-4">
         {integration.scopes.map((scope) => (
@@ -580,9 +524,7 @@ function SecurityTabContent({ integration }) {
           </li>
         ))}
       </ul>
-
       <hr className="my-6 border-slate-200" />
-
       <h3 className="text-lg font-semibold text-slate-800 mb-4">
         Metadata & Tagging
       </h3>
@@ -654,10 +596,6 @@ function DocsTabContent({ integration }) {
             saving.
           </li>
         </ol>
-        <p>
-          For more detailed instructions, please refer to the official Project
-          Catalyst documentation portal.
-        </p>
       </div>
     </div>
   );

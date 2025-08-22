@@ -8,7 +8,8 @@ const decryptSecret = (encrypted) =>
     Buffer.from(encrypted, "base64").toString("utf8");
 
 export async function POST(request, { params }) {
-    const { id } = params; // ✅ directly destructure params
+    const { id } = await params;
+
     if (!id) {
         return NextResponse.json(
             { error: "Integration ID is required." },
@@ -37,7 +38,7 @@ export async function POST(request, { params }) {
 
         switch (type) {
             case "email": {
-                const body = await request.json();
+                const body = await request.clone().json();
                 const { testEmail } = body;
                 if (!testEmail) {
                     return NextResponse.json(
@@ -73,6 +74,14 @@ export async function POST(request, { params }) {
                     subject: `Test Email from Project Catalyst`,
                     html: `<b>This is a test of the saved integration:</b><br/>Name: ${name}<br/>ID: ${id}`,
                 });
+
+                const updateResult = await client.query(
+                    "UPDATE integrations SET status = $1, last_healthy_at = NOW() WHERE id = $2",
+                    ["Healthy", id]
+                );
+
+                // --- REQUIRED CHANGE: Add diagnostic logging ---
+                console.log(`DB UPDATE for ${id}: Rows affected = ${updateResult.rowCount}`);
 
                 return NextResponse.json({
                     message: `Test email successfully sent to ${testEmail}!`,
@@ -118,6 +127,14 @@ export async function POST(request, { params }) {
                     );
                 }
 
+                const updateResult = await client.query(
+                    "UPDATE integrations SET status = $1, last_healthy_at = NOW() WHERE id = $2",
+                    ["Healthy", id]
+                );
+
+                // --- REQUIRED CHANGE: Add diagnostic logging ---
+                console.log(`DB UPDATE for ${id}: Rows affected = ${updateResult.rowCount}`);
+
                 return NextResponse.json({
                     message: "Test webhook successfully dispatched!",
                 });
@@ -130,6 +147,10 @@ export async function POST(request, { params }) {
                 );
         }
     } catch (error) {
+        await client.query(
+            "UPDATE integrations SET status = $1 WHERE id = $2",
+            ["Error", id]
+        );
         console.error(`API Test Dispatch Error for integration ${id}:`, error);
         return NextResponse.json(
             { error: "Failed to send test dispatch.", details: error.message },

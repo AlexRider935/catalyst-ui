@@ -82,7 +82,7 @@ export async function PUT(request, { params }) {
  * Remove an integration from the database
  */
 export async function DELETE(request, { params }) {
-    const { id } = params;
+    const { id } = await params;  // ← Correct: await params before destructuring
 
     if (!id) {
         return NextResponse.json({ error: 'Integration ID is required.' }, { status: 400 });

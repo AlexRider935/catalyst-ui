@@ -1,5 +1,3 @@
-// src/app/(main)/integrations/page.jsx
-
 "use client";
 
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
@@ -28,7 +26,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { createPortal } from "react-dom";
-import EditIntegrationModal from "./components/EditIntegrationModal"; // Assuming you place the modal in a components folder
+import toast, { Toaster } from "react-hot-toast"; // REQUIRED CHANGE
+import EditIntegrationModal from "./components/EditIntegrationModal";
 
 // --- Helper: Map integration types to icons ---
 const INTEGRATION_ICONS = {
@@ -127,7 +126,6 @@ function DeleteConfirmationModal({
 // --- Portal-based Actions Menu ---
 function ActionsMenu({ anchorRect, onClose, onEdit, onTest, onDisconnect }) {
   const menuRef = useRef(null);
-  // ... (rest of ActionsMenu component is unchanged)
   const [pos, setPos] = useState({
     top: 0,
     left: 0,
@@ -139,28 +137,20 @@ function ActionsMenu({ anchorRect, onClose, onEdit, onTest, onDisconnect }) {
     const GAP = 8;
     const width = 240;
     const height = 140;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    let top = anchorRect.bottom + GAP;
-    let left = anchorRect.right - width;
-
-    if (top + height > vh) {
-      top = Math.max(8, anchorRect.top - GAP - height);
-      setPos((p) => ({ ...p, transformOrigin: "bottom right" }));
-    } else {
-      setPos((p) => ({ ...p, transformOrigin: "top right" }));
-    }
-    if (left < 8) left = Math.max(8, anchorRect.left);
-
-    setPos((p) => ({ ...p, top, left }));
+    const top = anchorRect.bottom + GAP;
+    const left = anchorRect.right - width;
+    setPos({ top, left, transformOrigin: "top right" });
   }, [anchorRect]);
 
   useEffect(() => {
     const onDocClick = (e) => {
-      if (!menuRef.current) return;
-      if (!(e.target instanceof Node)) return;
-      if (!menuRef.current.contains(e.target)) onClose?.();
+      if (
+        !menuRef.current ||
+        !(e.target instanceof Node) ||
+        !menuRef.current.contains(e.target)
+      ) {
+        onClose?.();
+      }
     };
     const onEsc = (e) => {
       if (e.key === "Escape") onClose?.();
@@ -219,12 +209,8 @@ export default function IntegrationsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [integrationToDisconnect, setIntegrationToDisconnect] = useState(null);
-
-  // --- NEW STATE FOR EDIT MODAL ---
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [integrationToEdit, setIntegrationToEdit] = useState(null);
-
-  // Actions menu state
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuAnchorRect, setMenuAnchorRect] = useState(null);
   const [menuIntegration, setMenuIntegration] = useState(null);
@@ -238,6 +224,7 @@ export default function IntegrationsPage() {
       setIntegrations(data);
     } catch (error) {
       console.error(error);
+      toast.error("Failed to fetch integrations.");
     } finally {
       setIsLoading(false);
     }
@@ -250,52 +237,54 @@ export default function IntegrationsPage() {
   const handleDelete = async () => {
     if (!integrationToDisconnect) return;
     const originalIntegrations = [...integrations];
+    const integrationToDelete = { ...integrationToDisconnect };
+    setIntegrationToDisconnect(null);
     setIntegrations(
-      integrations.filter((i) => i.id !== integrationToDisconnect.id)
+      integrations.filter((i) => i.id !== integrationToDelete.id)
     );
-    try {
-      const response = await fetch(
-        `/api/integrations/${integrationToDisconnect.id}`,
-        { method: "DELETE" }
-      );
-      if (!response.ok) {
-        setIntegrations(originalIntegrations);
-        throw new Error("Failed to disconnect integration");
+
+    const apiPromise = fetch(`/api/integrations/${integrationToDelete.id}`, {
+      method: "DELETE",
+    }).then(async (res) => {
+      if (!res.ok) {
+        const result = await res.json();
+        throw new Error(
+          result.details || result.error || "An unknown error occurred."
+        );
       }
-    } catch (error) {
-      console.error(error);
-      setIntegrations(originalIntegrations);
-    } finally {
-      setIntegrationToDisconnect(null);
-    }
+      return res.json();
+    });
+
+    toast.promise(apiPromise, {
+      loading: `Disconnecting ${integrationToDelete.name}...`,
+      success: (result) => result.message || "Integration disconnected!",
+      error: (err) => {
+        setIntegrations(originalIntegrations);
+        return `Failed: ${err.toString()}`;
+      },
+    });
   };
 
-  // --- NEW: HANDLE SAVE FOR EDIT MODAL ---
   const handleSaveEdit = async (updatedIntegration) => {
     const originalIntegrations = [...integrations];
-    // Optimistic UI update
     setIntegrations(
       integrations.map((i) =>
         i.id === updatedIntegration.id ? updatedIntegration : i
       )
     );
-
     try {
       const response = await fetch(
         `/api/integrations/${updatedIntegration.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: updatedIntegration.name }), // Only send the fields that can be changed
+          body: JSON.stringify({ name: updatedIntegration.name }),
         }
       );
-
       if (!response.ok) {
-        // Revert on failure
         setIntegrations(originalIntegrations);
         throw new Error("Failed to save changes");
       }
-      // Optionally, refetch to get the latest state from the server
       await fetchIntegrations();
     } catch (error) {
       console.error(error);
@@ -317,7 +306,6 @@ export default function IntegrationsPage() {
     setMenuOpen(true);
   };
 
-  // --- UPDATED: handleEdit now opens the modal ---
   const handleEdit = () => {
     if (!menuIntegration) return;
     setIntegrationToEdit(menuIntegration);
@@ -326,33 +314,54 @@ export default function IntegrationsPage() {
 
   const handleTest = async () => {
     if (!menuIntegration) return;
-    try {
-      await fetch(`/api/integrations/${menuIntegration.id}/test`, {
-        method: "POST",
-      });
-      console.log("Test dispatch triggered");
-    } catch (e) {
-      console.error("Failed to send test dispatch", e);
+    let requestBody = null;
+    const requestHeaders = { "Content-Type": "application/json" };
+    if (menuIntegration.type === "email") {
+      const testEmail = prompt(
+        "Enter recipient email for the test dispatch:",
+        "test@example.com"
+      );
+      if (!testEmail)
+        return toast.error("Test cancelled: Recipient email is required.");
+      requestBody = JSON.stringify({ testEmail });
     }
+    const apiPromise = fetch(`/api/integrations/${menuIntegration.id}/test`, {
+      method: "POST",
+      headers: requestHeaders,
+      body: requestBody,
+    }).then(async (res) => {
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(
+          result.details || result.error || "An unknown error occurred."
+        );
+      }
+      // On success, refresh the integration data to show the new 'last_healthy_at' time
+      fetchIntegrations();
+      return result;
+    });
+    toast.promise(apiPromise, {
+      loading: "Sending test dispatch...",
+      success: (result) => result.message || "Dispatch sent successfully!",
+      error: (err) => `Failed: ${err.toString()}`,
+    });
   };
 
   return (
     <>
+      <Toaster position="bottom-right" reverseOrder={false} />
       <DeleteConfirmationModal
         isOpen={!!integrationToDisconnect}
         onClose={() => setIntegrationToDisconnect(null)}
         onConfirm={handleDelete}
         integrationName={integrationToDisconnect?.name}
       />
-
-      {/* --- NEW: Render Edit Modal --- */}
       <EditIntegrationModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveEdit}
         integration={integrationToEdit}
       />
-
       {menuOpen && (
         <ActionsMenu
           anchorRect={menuAnchorRect}
@@ -362,7 +371,6 @@ export default function IntegrationsPage() {
           onDisconnect={() => setIntegrationToDisconnect(menuIntegration)}
         />
       )}
-
       <div className="space-y-6 h-full flex flex-col">
         <div className="flex items-center justify-between">
           <div>
@@ -379,7 +387,6 @@ export default function IntegrationsPage() {
             </button>
           </Link>
         </div>
-
         <div className="flex items-center justify-between gap-4">
           <div className="relative flex-grow max-w-md">
             <Search
@@ -410,7 +417,6 @@ export default function IntegrationsPage() {
             ))}
           </div>
         </div>
-
         <div className="flex-1 min-h-0">
           <div className="flex h-full flex-col rounded-xl border border-slate-200/80 bg-white shadow-sm">
             <div className="overflow-y-auto">
@@ -435,7 +441,7 @@ export default function IntegrationsPage() {
                     <th
                       scope="col"
                       className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">
-                      Last Checked
+                      Last Healthy
                     </th>
                     <th
                       scope="col"
@@ -492,7 +498,13 @@ export default function IntegrationsPage() {
                             {integration.type}
                           </td>
                           <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                            {new Date(integration.updated_at).toLocaleString()}
+                            {integration.last_healthy_at ? (
+                              new Date(
+                                integration.last_healthy_at
+                              ).toLocaleString()
+                            ) : (
+                              <span className="text-slate-400">Never</span>
+                            )}
                           </td>
                           <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                             <button

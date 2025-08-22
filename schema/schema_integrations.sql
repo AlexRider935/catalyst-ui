@@ -11,3 +11,4 @@ CREATE TABLE integrations (
 );
 
 CREATE INDEX idx_integrations_type ON integrations(type);
+ALTER TABLE integrations ADD COLUMN last_healthy_at TIMESTAMPTZ;

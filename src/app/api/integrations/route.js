@@ -46,18 +46,19 @@ export async function POST(request) {
     try {
         const payload = await request.json();
 
-        if (!payload.name || !payload.type) {
-            return NextResponse.json({ error: "Integration name and type are required." }, { status: 400 });
+        // Silas: Correctly destructure the nested config object from the payload.
+        const { name, type, config } = payload;
+
+        if (!name || !type || !config) {
+            return NextResponse.json({ error: "Integration name, type, and config are required." }, { status: 400 });
         }
 
-        const { name, type } = payload;
-        let config = { ...payload };
-        delete config.name;
-        delete config.type;
-
+        // Silas: Encrypt secrets for all relevant integration types.
         if (type === "email") {
             if (config.apiKey) config.apiKey = encryptSecret(config.apiKey);
             if (config.smtpPass) config.smtpPass = encryptSecret(config.smtpPass);
+        } else if (type === "webhook") {
+            if (config.secret) config.secret = encryptSecret(config.secret);
         }
 
         const configured_by = "silas.architect";
@@ -68,8 +69,6 @@ export async function POST(request) {
           RETURNING id, name, type, is_enabled, status, configured_by, created_at;
         `;
 
-        // ✅ The pg driver handles JSON objects automatically for JSONB columns.
-        // No need for JSON.stringify().
         const values = [name, type, config, true, configured_by];
 
         const result = await db.query(query, values);
