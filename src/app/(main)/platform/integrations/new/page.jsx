@@ -1,5 +1,3 @@
-// src/app/(main)/platform/integrations/new/page.jsx
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -18,7 +16,6 @@ import {
   Shield,
   Users,
   Bot,
-  Database,
   Search,
   CheckCircle2,
   XCircle,
@@ -26,17 +23,18 @@ import {
   FileText,
 } from "lucide-react";
 import clsx from "clsx";
+import toast from "react-hot-toast"; // Using toast for save errors
 
 // Import your configuration components
-import SlackConfig from "./components/SlackConfig";
-import WebhookConfig from "./components/WebhookConfig";
-import EmailConfig from "./components/EmailConfig";
-import JiraConfig from "./components/JiraConfig";
-import PagerDutyConfig from "./components/PagerDutyConfig";
-import S3BucketConfig from "./components/S3BucketConfig";
-import CrowdStrikeConfig from "./components/CrowdStrikeConfig";
-import OktaConfig from "./components/OktaConfig";
-import MSTeamsConfig from "./components/MSTeamsConfig";
+import SlackConfig from "./components/Configs/SlackConfig";
+import WebhookConfig from "./components/Configs/WebHookConfig";
+import EmailConfig from "./components/Configs/EmailConfig";
+import JiraConfig from "./components/Configs/JiraConfig";
+import PagerDutyConfig from "./components/Configs/PagerDutyConfig";
+import S3BucketConfig from "./components/Configs/S3BucketConfig";
+import CrowdStrikeConfig from "./components/Configs/CrowdStrikeConfig";
+import OktaConfig from "./components/Configs/OktaConfig";
+import MSTeamsConfig from "./components/Configs/MSTeamsConfig";
 
 const INTEGRATION_CATALOG = {
   "Collaboration & Notifications": [
@@ -176,39 +174,67 @@ export default function NewIntegrationWorkbench() {
     return null;
   }, [selectedTypeId]);
 
-  // --- THIS FUNCTION WAS MISSING ---
+  // ✅ CORRECTED: This function now uses the component's state to send the
+  // correct data to the API and updates the UI with the test result.
   const handleTestConnection = async () => {
-    if (!selectedIntegration) return;
     setTestState({ status: "testing", message: "Verifying connection..." });
+
+    const payload = {
+      type: selectedTypeId,
+      config: configData,
+    };
+
+    // Basic validation to ensure required fields aren't empty
+    if (
+      !payload.type ||
+      !payload.config ||
+      Object.keys(payload.config).length === 0
+    ) {
+      setTestState({
+        status: "error",
+        message: "Configuration is incomplete.",
+      });
+      return;
+    }
+
     try {
       const response = await fetch("/api/integrations/test-connection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: selectedTypeId, config: configData }),
+        body: JSON.stringify(payload),
       });
+
       const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(result.error || "Test connection failed.");
+        setTestState({
+          status: "error",
+          message: result.error || "Test failed",
+        });
+      } else {
+        setTestState({
+          status: "success",
+          message: result.message || "Connection successful!",
+        });
       }
-      setTestState({
-        status: "success",
-        message: result.message || "Connection successful!",
-      });
     } catch (error) {
-      setTestState({ status: "error", message: error.message });
+      setTestState({
+        status: "error",
+        message: "An unexpected network error occurred.",
+      });
     }
   };
 
   const handleSave = async () => {
     if (testState.status !== "success") {
-      alert("Cannot save: connection must be tested successfully first.");
+      toast.error("Please test the connection successfully before saving.");
       return;
     }
     setIsSaving(true);
     try {
       const payload = {
         type: selectedTypeId,
-        name: configData.name || selectedIntegration.name,
+        name: configData.name || `${selectedIntegration.name} Integration`,
         config: configData,
       };
       const response = await fetch("/api/integrations", {
@@ -220,10 +246,11 @@ export default function NewIntegrationWorkbench() {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to save integration");
       }
+      toast.success("Integration created successfully!");
       router.push("/platform/integrations");
     } catch (error) {
       console.error("Save Integration Error:", error);
-      alert(`Save Failed: ${error.message}`);
+      toast.error(`Save Failed: ${error.message}`);
     } finally {
       setIsSaving(false);
     }

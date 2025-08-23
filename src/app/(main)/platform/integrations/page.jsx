@@ -86,7 +86,7 @@ function DeleteConfirmationModal({
 }) {
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-[100]" onClose={onClose}>
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-300"
@@ -300,19 +300,16 @@ export default function IntegrationsPage() {
     });
   };
 
-  // ✅ CORRECTED: This function now properly handles the save logic.
   const handleSaveEdit = async (updatedIntegration) => {
     const { id, name, config } = updatedIntegration;
     const originalIntegrations = [...integrations];
 
-    // Optimistically update the name in the UI and close the modal
     setIntegrations(
       integrations.map((i) => (i.id === id ? { ...i, name } : i))
     );
     setIsEditModalOpen(false);
     setIntegrationToEdit(null);
 
-    // Construct the payload with only the fields that are being updated.
     const payload = { name };
     if (config && Object.keys(config).length > 0) {
       payload.config = config;
@@ -323,10 +320,7 @@ export default function IntegrationsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }).then(async (res) => {
-      if (!res.ok) {
-        throw new Error("Failed to save changes.");
-      }
-      // On success, refresh all data from the server to ensure consistency.
+      if (!res.ok) throw new Error("Failed to save changes.");
       await fetchIntegrations();
       return res.json();
     });
@@ -335,7 +329,6 @@ export default function IntegrationsPage() {
       loading: "Saving changes...",
       success: "Integration updated successfully!",
       error: (err) => {
-        // Revert the UI on failure
         setIntegrations(originalIntegrations);
         return err.toString();
       },
@@ -403,11 +396,10 @@ export default function IntegrationsPage() {
       body: requestBody,
     }).then(async (res) => {
       const result = await res.json();
-      if (!res.ok) {
+      if (!res.ok)
         throw new Error(
           result.details || result.error || "An unknown error occurred."
         );
-      }
       fetchIntegrations();
       return result;
     });
@@ -505,6 +497,7 @@ export default function IntegrationsPage() {
 
         <div className="flex-1 min-h-0">
           <div className="flex h-full flex-col rounded-xl border border-slate-200/80 bg-white shadow-sm">
+            {/* ✅ CORRECTED: Moved overflow-y-auto to the direct parent of the table for proper sticky header behavior */}
             <div className="overflow-y-auto">
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="sticky top-0 z-10 bg-slate-50">
