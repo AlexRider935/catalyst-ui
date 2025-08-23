@@ -1,111 +1,114 @@
-// File: src/app/api/integrations/[id]/route.js
-
+import { db } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { Pool } from 'pg';
 
-// --- Database Connection Pool ---
-const pool = new Pool({
-    connectionString: process.env.POSTGRES_URL, // Example: postgres://user:pass@host:5432/dbname
-});
+// NOTE: Add your decryption function here if needed
+// const decryptSecret = (secret) => Buffer.from(secret, 'base64').toString('ascii');
 
 /**
- * GET /api/integrations/[id]
- * Fetch a single integration by ID
+ * GET handler for a single integration by ID.
  */
 export async function GET(request, { params }) {
     const { id } = params;
-
-    if (!id) {
-        return NextResponse.json({ error: 'Integration ID is required.' }, { status: 400 });
-    }
-
-    const client = await pool.connect();
-
     try {
-        const result = await client.query(
-            'SELECT * FROM integrations WHERE id = $1',
-            [id]
-        );
-
-        if (result.rows.length === 0) {
-            return NextResponse.json({ error: 'Integration not found.' }, { status: 404 });
+        const { rows } = await db.query('SELECT * FROM integrations WHERE id = $1', [id]);
+        if (rows.length === 0) {
+            return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
         }
-
-        return NextResponse.json(result.rows[0], { status: 200 });
+        // SECURITY: Be cautious about returning the full config with secrets.
+        // This example omits it for security, but you could return non-sensitive parts.
+        const { config, ...integrationData } = rows[0];
+        return NextResponse.json(integrationData);
     } catch (error) {
-        console.error(`[API] Error fetching integration ${id}:`, error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    } finally {
-        client.release();
+        console.error(`API Error fetching integration ${id}:`, error);
+        return NextResponse.json({ error: 'Failed to fetch integration.' }, { status: 500 });
     }
 }
 
+
 /**
- * PUT /api/integrations/[id]
- * Update an existing integration
+ * PUT handler to update an integration.
+ * ARCHITECT'S NOTE: This handler is now dynamic. It only updates the fields
+ * that are explicitly provided in the request body, resolving the
+ * 'violates not-null constraint' error.
  */
 export async function PUT(request, { params }) {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
+
     const { name, config, is_enabled } = body;
 
-    if (!id) {
-        return NextResponse.json({ error: 'Integration ID is required.' }, { status: 400 });
-    }
-
-    const client = await pool.connect();
-
     try {
-        const result = await client.query(
-            `UPDATE integrations
-       SET name = $1, config = $2, is_enabled = $3, updated_at = NOW()
-       WHERE id = $4
-       RETURNING *`,
-            [name, config, is_enabled, id]
-        );
-
-        if (result.rowCount === 0) {
-            return NextResponse.json({ error: 'Integration not found.' }, { status: 404 });
+        // First, fetch the current record to safely merge the config JSONB object
+        const existingResult = await db.query('SELECT config FROM integrations WHERE id = $1', [id]);
+        if (existingResult.rows.length === 0) {
+            return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
         }
 
-        return NextResponse.json(result.rows[0], { status: 200 });
+        const existingConfig = existingResult.rows[0].config || {};
+
+        const updateFields = [];
+        const values = [];
+        let queryIndex = 1;
+
+        // Conditionally add fields to the update query
+        if (name !== undefined) {
+            updateFields.push(`name = $${queryIndex++}`);
+            values.push(name);
+        }
+
+        if (config !== undefined && Object.keys(config).length > 0) {
+            // Merge new config values into the existing ones
+            const newConfig = { ...existingConfig, ...config };
+            updateFields.push(`config = $${queryIndex++}`);
+            values.push(newConfig);
+        }
+
+        if (is_enabled !== undefined) {
+            updateFields.push(`is_enabled = $${queryIndex++}`);
+            values.push(is_enabled);
+        }
+
+        // If no fields were provided to update, return early.
+        if (updateFields.length === 0) {
+            return NextResponse.json({ message: "No fields to update." }, { status: 400 });
+        }
+
+        // Always update the 'updated_at' timestamp on any change
+        updateFields.push('updated_at = NOW()');
+
+        const updateQuery = `
+            UPDATE integrations
+            SET ${updateFields.join(', ')}
+            WHERE id = $${queryIndex}
+            RETURNING *;
+        `;
+
+        values.push(id);
+
+        const { rows } = await db.query(updateQuery, values);
+
+        return NextResponse.json(rows[0]);
+
     } catch (error) {
         console.error(`[API] Error updating integration ${id}:`, error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    } finally {
-        client.release();
+        return NextResponse.json({ error: 'Failed to update integration.' }, { status: 500 });
     }
 }
 
+
 /**
- * DELETE /api/integrations/[id]
- * Remove an integration from the database
+ * DELETE handler to remove an integration.
  */
 export async function DELETE(request, { params }) {
-    const { id } = await params;  // ← Correct: await params before destructuring
-
-    if (!id) {
-        return NextResponse.json({ error: 'Integration ID is required.' }, { status: 400 });
-    }
-
-    const client = await pool.connect();
-
+    const { id } = params;
     try {
-        const result = await client.query(
-            'DELETE FROM integrations WHERE id = $1',
-            [id]
-        );
-
+        const result = await db.query('DELETE FROM integrations WHERE id = $1 RETURNING name', [id]);
         if (result.rowCount === 0) {
-            return NextResponse.json({ error: 'Integration not found.' }, { status: 404 });
+            return NextResponse.json({ error: 'Integration not found' }, { status: 404 });
         }
-
-        console.log(`[DATABASE] Deleted integration ID: ${id}`);
-        return NextResponse.json({ message: 'Integration disconnected successfully' }, { status: 200 });
+        return NextResponse.json({ message: `Integration "${result.rows[0].name}" disconnected successfully.` });
     } catch (error) {
-        console.error(`[API] Error deleting integration ${id}:`, error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    } finally {
-        client.release();
+        console.error(`API Error deleting integration ${id}:`, error);
+        return NextResponse.json({ error: 'Failed to delete integration.' }, { status: 500 });
     }
 }

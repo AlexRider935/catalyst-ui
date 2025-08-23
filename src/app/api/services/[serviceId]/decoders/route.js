@@ -1,4 +1,5 @@
-import { query } from '@/lib/db';
+import { db } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
 // ✅ Helper function to map database columns to frontend properties
 const transformDecoder = (decoder) => ({
@@ -12,19 +13,22 @@ const transformDecoder = (decoder) => ({
 });
 
 // GET /api/services/[serviceId]/decoders
-export async function GET(request, context) {
-    const { serviceId } = await context.params; // ✅ await before destructuring
+export async function GET(request, { params }) {
+    const { serviceId } = params;
 
     try {
-        const decoders = await query(
+        // ✅ CORRECTED: Use db.query() to execute the SQL statement.
+        const result = await db.query(
             "SELECT * FROM decoders WHERE service_id = $1 ORDER BY name ASC",
             [serviceId]
         );
 
-        return Response.json(decoders.rows.map(transformDecoder));
+        const decoders = result.rows.map(transformDecoder);
+        return NextResponse.json(decoders);
+
     } catch (err) {
         console.error("Error fetching decoders:", err);
-        return Response.json(
+        return NextResponse.json(
             { success: false, error: "Internal Server Error" },
             { status: 500 }
         );
@@ -32,19 +36,20 @@ export async function GET(request, context) {
 }
 
 // POST /api/services/[serviceId]/decoders
-export async function POST(request, context) {
-    const { serviceId } = await context.params; // ✅ await here too
+export async function POST(request, { params }) {
+    const { serviceId } = params;
     const { name, log_example, regex_pattern } = await request.json();
 
     if (!name || !log_example || !regex_pattern) {
-        return new Response(
-            JSON.stringify({ error: "Missing required fields" }),
+        return NextResponse.json(
+            { error: "Missing required fields" },
             { status: 400 }
         );
     }
 
     try {
-        const result = await query(
+        // ✅ CORRECTED: Use db.query() here as well.
+        const result = await db.query(
             `INSERT INTO decoders (service_id, name, log_example, regex_pattern)
              VALUES ($1, $2, $3, $4)
              RETURNING *;`,
@@ -53,14 +58,12 @@ export async function POST(request, context) {
 
         const newDecoder = transformDecoder(result.rows[0]);
 
-        return new Response(JSON.stringify(newDecoder), {
-            status: 201,
-            headers: { "Content-Type": "application/json" },
-        });
+        return NextResponse.json(newDecoder, { status: 201 });
+
     } catch (error) {
         console.error("Failed to create decoder:", error);
-        return new Response(
-            JSON.stringify({ error: "Internal Server Error" }),
+        return NextResponse.json(
+            { error: "Internal Server Error" },
             { status: 500 }
         );
     }

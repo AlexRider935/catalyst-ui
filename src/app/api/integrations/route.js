@@ -5,13 +5,15 @@ const encryptSecret = (secret) => Buffer.from(secret).toString('base64');
 
 /**
  * GET handler to fetch a list of configured integrations.
+ * ARCHITECT'S NOTE: Updated to include the 'is_enabled' field for the new UI toggle functionality.
  */
 export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
 
     try {
-        let query = 'SELECT id, name, type, status, configured_by, updated_at FROM integrations';
+        // ✅ MODIFIED: Added 'is_enabled' to the SELECT statement.
+        let query = 'SELECT id, name, type, status, is_enabled, configured_by, updated_at, last_healthy_at FROM integrations';
         const values = [];
 
         if (type) {
@@ -27,8 +29,10 @@ export async function GET(request) {
             name: row.name,
             type: row.type,
             status: row.status,
+            isEnabled: row.is_enabled, // ✅ MODIFIED: Added isEnabled to the response object.
             configuredBy: row.configured_by,
-            updatedAt: row.updated_at
+            updatedAt: row.updated_at,
+            lastHealthyAt: row.last_healthy_at
         }));
 
         return NextResponse.json(integrations);
@@ -46,14 +50,12 @@ export async function POST(request) {
     try {
         const payload = await request.json();
 
-        // Silas: Correctly destructure the nested config object from the payload.
         const { name, type, config } = payload;
 
         if (!name || !type || !config) {
             return NextResponse.json({ error: "Integration name, type, and config are required." }, { status: 400 });
         }
 
-        // Silas: Encrypt secrets for all relevant integration types.
         if (type === "email") {
             if (config.apiKey) config.apiKey = encryptSecret(config.apiKey);
             if (config.smtpPass) config.smtpPass = encryptSecret(config.smtpPass);
