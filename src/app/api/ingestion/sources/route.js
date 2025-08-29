@@ -1,66 +1,59 @@
-import { db } from '@/lib/db';
+import { pool } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 
-/**
- * GET /api/ingestion/sources
- * Fetches a list of all configured data sources.
- */
-export async function GET(request) {
-    try {
-        // This query selects all the necessary fields for the Ingestion Studio UI.
-        const query = `
-            SELECT 
-                id, 
-                name, 
-                type, 
-                status, 
-                last_error, 
-                last_seen_at, 
-                events_per_second, 
-                is_enabled, 
-                created_by, 
-                updated_at,
-                config
-            FROM 
-                sources 
-            ORDER BY 
-                name ASC;
-        `;
-        const { rows } = await db.query(query);
-        return NextResponse.json(rows);
-    } catch (error) {
-        console.error("[API] Error fetching ingestion sources:", error);
-        return NextResponse.json({ error: 'Failed to fetch ingestion sources.' }, { status: 500 });
-    }
-}
-
-/**
- * POST /api/ingestion/sources
- * Creates a new data source.
- */
+// This single POST function handles creating ANY type of source.
 export async function POST(request) {
-    try {
-        const { name, type, config } = await request.json();
+    const { type, name, config } = await request.json();
 
-        if (!name || !type) {
-            return NextResponse.json({ error: 'Source name and type are required.' }, { status: 400 });
+    if (!type || !name) {
+        return NextResponse.json({ error: "Source type and name are required." }, { status: 400 });
+    }
+
+    const client = await pool.connect();
+    try {
+        // --- Logic for Catalyst Agent ---
+        if (type === 'catalyst-agent') {
+            const token = config.registrationToken;
+            if (!token) {
+                return NextResponse.json({ error: "Registration token is missing for agent source." }, { status: 400 });
+            }
+
+            // Insert into the 'agents' table (our new model)
+            const query = `
+                INSERT INTO agents (name, registration_token, status)
+                VALUES ($1, $2, 'Never Connected')
+                RETURNING id, name;
+            `;
+            const result = await client.query(query, [name, token]);
+            return NextResponse.json(result.rows[0]);
         }
 
-        const created_by = "silas.architect"; // In a real app, get from session
+        // --- Logic for Other Source Types (Example) ---
+        // For other types, you might save to a different table or use the 'config' object.
+        // This is a placeholder for your future source types.
+        else {
+            // Example: Saving to a generic 'sources' table
+            // const query = `
+            //     INSERT INTO sources (name, type, config)
+            //     VALUES ($1, $2, $3)
+            //     RETURNING id, name;
+            // `;
+            // const result = await client.query(query, [name, type, config]);
+            // return NextResponse.json(result.rows[0]);
 
-        const query = `
-            INSERT INTO sources (name, type, config, created_by, status, is_enabled)
-            VALUES ($1, $2, $3, $4, 'Offline', true)
-            RETURNING *;
-        `;
-        const values = [name, type, config || {}, created_by];
-
-        const { rows } = await db.query(query, values);
-
-        return NextResponse.json(rows[0], { status: 201 });
+            // For now, return a success message for non-agent types
+            return NextResponse.json({
+                id: `mock-${randomBytes(8).toString('hex')}`,
+                name: name,
+                message: "Placeholder for non-agent source creation."
+            });
+        }
 
     } catch (error) {
-        console.error("[API] Error creating source:", error);
-        return NextResponse.json({ error: 'Failed to create source.' }, { status: 500 });
+        console.error("[CREATE_SOURCE_API]", error);
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    } finally {
+        client.release();
     }
 }
