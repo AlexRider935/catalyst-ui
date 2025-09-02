@@ -14,7 +14,7 @@ const transformDecoder = (decoder) => ({
 
 // GET /api/services/[serviceId]/decoders
 export async function GET(request, { params }) {
-    const { serviceId } = params;
+    const { serviceId } = await params;
 
     try {
         // ✅ CORRECTED: Use db.query() to execute the SQL statement.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -14,30 +14,28 @@ import {
   Copy,
   AlertCircle,
   RefreshCw,
-  FileText, // Icon for log events
-  ShieldAlert, // Icon for FIM events
-  Loader2,
 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import toast from "react-hot-toast";
 import clsx from "clsx";
-// --- Sub-components for the Advanced View ---
+import EventsTab from "./EventsTab";
+import ConfigurationTab from "./ConfigurationTab";
 
 function StatusBadge({ status }) {
   const statusInfo = {
     Online: {
       icon: CheckCircle,
-      color: "bg-green-100 text-green-700",
+      color: "bg-green-100 text-green-700 ring-1 ring-green-200",
       label: "Online",
     },
     Offline: {
       icon: XCircle,
-      color: "bg-red-100 text-red-700",
+      color: "bg-red-100 text-red-700 ring-1 ring-red-200",
       label: "Offline",
     },
     "Never Connected": {
       icon: Clock,
-      color: "bg-slate-200 text-slate-600",
+      color: "bg-slate-100 text-slate-600 ring-1 ring-slate-200",
       label: "Never Connected",
     },
   };
@@ -45,9 +43,9 @@ function StatusBadge({ status }) {
   const Icon = currentStatus.icon;
   return (
     <div
-      className={`inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full ${currentStatus.color}`}>
+      className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium ${currentStatus.color}`}>
       <Icon size={14} />
-      <span>{currentStatus.label}</span>
+      {currentStatus.label}
     </div>
   );
 }
@@ -61,13 +59,17 @@ const DetailItem = ({ icon, label, value, isMono = false }) => {
     }
   };
   return (
-    <div className="group flex items-center justify-between py-3 border-b border-slate-100 last:border-b-0">
-      <div className="text-sm text-slate-500 flex items-center gap-3">
+    <div className="group flex items-center justify-between py-2.5 border-b border-slate-100 last:border-none">
+      <div className="flex items-center gap-2 text-sm text-slate-500">
         <Icon size={16} />
-        <span>{label}</span>
+        {label}
       </div>
       <div className="flex items-center gap-2">
-        <span className={`text-slate-700 text-sm ${isMono ? "font-mono" : ""}`}>
+        <span
+          className={clsx(
+            "text-sm text-slate-800",
+            isMono && "font-mono tracking-tight"
+          )}>
           {value || "—"}
         </span>
         {value && (
@@ -83,38 +85,34 @@ const DetailItem = ({ icon, label, value, isMono = false }) => {
 };
 
 const VitalsCard = ({ agent }) => (
-  <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-sm">
+  <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
     <h4 className="font-semibold text-slate-800 text-base">Agent Vitals</h4>
-    <div className="mt-4 space-y-3 text-sm">
-      <div className="flex justify-between items-center">
-        <span className="text-slate-500">IP Address</span>
-        <span className="font-medium text-slate-800 font-mono">
+    <dl className="mt-4 space-y-3 text-sm">
+      <div className="flex justify-between">
+        <dt className="text-slate-500">IP Address</dt>
+        <dd className="font-mono text-slate-800">
           {agent.ip_address || "N/A"}
-        </span>
+        </dd>
       </div>
-      <div className="flex justify-between items-center">
-        <span className="text-slate-500">Operating System</span>
-        <span className="font-medium text-slate-800">
-          {agent.os_name || "Unknown"}
-        </span>
+      <div className="flex justify-between">
+        <dt className="text-slate-500">Operating System</dt>
+        <dd className="text-slate-800">{agent.os_name || "Unknown"}</dd>
       </div>
-      <div className="flex justify-between items-center">
-        <span className="text-slate-500">Agent Version</span>
-        <span className="font-medium text-slate-800">
-          {agent.version || "1.0.0"}
-        </span>
+      <div className="flex justify-between">
+        <dt className="text-slate-500">Agent Version</dt>
+        <dd className="text-slate-800">{agent.version || "1.0.0"}</dd>
       </div>
-      <div className="flex justify-between items-center">
-        <span className="text-slate-500">Last Seen</span>
-        <span className="font-medium text-slate-800">
+      <div className="flex justify-between">
+        <dt className="text-slate-500">Last Seen</dt>
+        <dd className="text-slate-800">
           {agent.last_seen_at
             ? formatDistanceToNow(new Date(agent.last_seen_at), {
                 addSuffix: true,
               })
             : "Never"}
-        </span>
+        </dd>
       </div>
-    </div>
+    </dl>
   </div>
 );
 
@@ -124,107 +122,23 @@ const ComplianceCard = ({ agent }) => {
   const color = isCompliant ? "text-green-600" : "text-amber-600";
   const text = isCompliant ? "Compliant" : "Needs Attention";
   const description = isCompliant
-    ? "Agent is online and reporting as expected."
+    ? "Agent is online and reporting normally."
     : "Agent is offline or has never connected.";
   return (
-    <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-sm flex items-center gap-4">
-      <Icon size={32} className={color} />
+    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex items-start gap-3">
+      <Icon size={28} className={color} />
       <div>
         <h4 className="font-semibold text-slate-800 text-base">
           Compliance Status
         </h4>
-        <p className={`font-semibold ${color}`}>{text}</p>
+        <p className={`font-medium ${color}`}>{text}</p>
         <p className="text-sm text-slate-500">{description}</p>
       </div>
     </div>
   );
 };
 
-// --- UPDATED EventsTab with Live Polling and Better Styling ---
-const Event = ({ event }) => {
-  // Determine icon and color based on the event type for better visual parsing
-  const eventType = event.data?.type || "log";
-  const eventInfo = {
-    log: { icon: FileText, color: "text-blue-500" },
-    fim: { icon: ShieldAlert, color: "text-amber-500" },
-    default: { icon: FileText, color: "text-slate-500" },
-  };
-  const { icon: Icon, color } = eventInfo[eventType] || eventInfo.default;
-
-  return (
-    <div className="flex items-start py-2.5 border-b border-slate-100 last:border-b-0">
-      <Icon size={16} className={`mr-4 mt-0.5 shrink-0 ${color}`} />
-      <div className="flex-1">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold text-slate-700 text-sm capitalize">
-            {eventType} Event
-          </span>
-          <span className="text-slate-400 font-mono text-xs">
-            {format(new Date(event.received_at), "HH:mm:ss")}
-          </span>
-        </div>
-        <code className="text-xs text-slate-500 mt-1 block whitespace-pre-wrap">
-          {JSON.stringify(event.data, null, 2)}
-        </code>
-      </div>
-    </div>
-  );
-};
-
-const EventsTab = ({ agentId }) => {
-  const [events, setEvents] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!agentId) return;
-    const fetchEvents = async () => {
-      try {
-        const res = await fetch(`/api/agents/${agentId}/events`);
-        if (!res.ok) throw new Error("Failed to fetch events");
-        const data = await res.json();
-        setEvents(data);
-      } catch (error) {
-        toast.error(error.message, { id: "fetch-events-error" });
-      } finally {
-        if (isLoading) setIsLoading(false);
-      }
-    };
-
-    fetchEvents(); // Fetch on initial load
-    const intervalId = setInterval(fetchEvents, 15000); // Poll for new events every 15 seconds
-    return () => clearInterval(intervalId); // Cleanup on unmount
-  }, [agentId]);
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-sm">
-      <h3 className="text-base font-semibold text-slate-800">
-        Live Event Stream
-      </h3>
-      <div className="mt-4 border-t border-slate-200 -mx-6">
-        {isLoading ? (
-          <div className="text-center p-8 text-slate-500 flex items-center justify-center gap-2">
-            <Loader2 size={16} className="animate-spin" />
-            <span>Loading initial events...</span>
-          </div>
-        ) : events.length === 0 ? (
-          <div className="text-center p-8">
-            <p className="text-slate-500 text-sm">
-              No recent events found for this agent.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100 max-h-[30rem] overflow-y-auto px-6">
-            {events.map((event) => (
-              <Event key={event.id} event={event} />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- The Main Detail Component ---
+// --- Main Detail Component ---
 export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
   const [activeTab, setActiveTab] = useState("Overview");
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
@@ -234,11 +148,9 @@ export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
     toast.loading("Checking agent status...", { id: "status-check" });
     try {
       await fetch("/api/agents/check-status", { method: "POST" });
-      if (onUpdate) {
-        await onUpdate();
-      }
+      if (onUpdate) await onUpdate();
       toast.success("Status check complete.", { id: "status-check" });
-    } catch (error) {
+    } catch {
       toast.error("Failed to check status.", { id: "status-check" });
     } finally {
       setIsCheckingStatus(false);
@@ -247,7 +159,7 @@ export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
 
   if (!source) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-center p-8">
+      <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 p-10 text-center">
         <Shield size={48} className="text-slate-300 mb-4" />
         <h2 className="text-xl font-semibold text-slate-700">
           No Agent Selected
@@ -271,48 +183,46 @@ export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         className="p-6 lg:p-8">
-        <header className="flex justify-between items-center mb-8">
+        {/* Header */}
+        <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">{source.name}</h1>
-            <p className="mt-1 text-slate-500">
+            <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 flex items-center gap-3">
+              {source.name}
+              <StatusBadge status={source.status} />
+            </h1>
+            <p className="mt-1 text-slate-500 text-sm">
               Agent Health & Event Monitoring Dashboard
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* --- UPDATED REFRESH BUTTON LOGIC --- */}
-            <div
-              title={
-                source.status !== "Online"
-                  ? "Agent must be Online to check for disconnection."
-                  : "Force a server-side check for this agent's status."
-              }>
-              <button
-                onClick={handleManualCheck}
-                disabled={isCheckingStatus || source.status !== "Online"}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white py-2 px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                <RefreshCw
-                  size={16}
-                  className={isCheckingStatus ? "animate-spin" : ""}
-                />
-                Refresh Status
-              </button>
-            </div>
+            <button
+              onClick={handleManualCheck}
+              disabled={isCheckingStatus || source.status !== "Online"}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
+              <RefreshCw
+                size={16}
+                className={isCheckingStatus ? "animate-spin" : ""}
+              />
+              Refresh
+            </button>
             <button
               onClick={() => onDeleteInitiated(source)}
-              className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-slate-900 py-2 px-4 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
-              <Trash2 size={16} /> Delete Agent
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 py-2 px-3 text-sm font-medium text-white shadow-sm hover:bg-red-700">
+              <Trash2 size={16} />
+              Delete
             </button>
           </div>
         </header>
 
+        {/* Tabs */}
         <div className="border-b border-slate-200">
-          <nav className="-mb-px flex space-x-6" aria-label="Tabs">
+          <nav className="-mb-px flex space-x-6 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={clsx(
-                  "whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors focus:outline-none",
+                  "whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors",
                   activeTab === tab
                     ? "border-blue-500 text-blue-600"
                     : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
@@ -323,6 +233,7 @@ export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
           </nav>
         </div>
 
+        {/* Tab Content */}
         <div className="mt-6">
           <AnimatePresence mode="wait">
             <motion.div
@@ -337,27 +248,27 @@ export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
                     <VitalsCard agent={source} />
                     <ComplianceCard agent={source} />
                   </div>
-                  <div className="bg-white rounded-xl border border-slate-200/80 p-6 shadow-sm">
-                    <h4 className="font-semibold text-slate-800 text-base mb-2">
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                    <h4 className="font-semibold text-slate-800 text-base mb-3">
                       Key Identifiers
                     </h4>
                     <DetailItem
                       icon={Fingerprint}
                       label="Agent ID"
                       value={source.id}
-                      isMono={true}
+                      isMono
                     />
                     <DetailItem
                       icon={Server}
                       label="Device ID"
                       value={source.device_identifier}
-                      isMono={true}
+                      isMono
                     />
                     <DetailItem
                       icon={Shield}
                       label="API Key"
                       value={redactedApiKey}
-                      isMono={true}
+                      isMono
                     />
                     <DetailItem
                       icon={Calendar}
@@ -369,16 +280,12 @@ export default function SourceDetail({ source, onDeleteInitiated, onUpdate }) {
               )}
               {activeTab === "Events" && <EventsTab agentId={source.id} />}
               {activeTab === "Configuration" && (
-                <div className="p-8 text-center bg-white rounded-xl border border-slate-200/80 shadow-sm">
-                  <p className="text-slate-500">
-                    Agent's reported configuration will be displayed here.
-                  </p>
-                </div>
+                <ConfigurationTab agentId={source.id} />
               )}
               {activeTab === "Audit Trail" && (
-                <div className="p-8 text-center bg-white rounded-xl border border-slate-200/80 shadow-sm">
+                <div className="p-8 text-center bg-white rounded-xl border border-slate-200 shadow-sm">
                   <p className="text-slate-500">
-                    Actions performed on this agent will be logged here.
+                    Actions performed on this agent will appear here.
                   </p>
                 </div>
               )}

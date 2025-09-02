@@ -1,24 +1,30 @@
 import { pool } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-// This endpoint will be called by the agent to get its configuration.
-// For now, it returns a static config. In a full app, you'd store this in the database.
 export async function GET(request, { params }) {
-    const apiKey = request.headers.get('Authorization')?.split(' ')[1];
-    if (!apiKey) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await params;
+    try {
+        const result = await pool.query('SELECT config FROM agents WHERE id = $1', [id]);
+        if (result.rowCount === 0) {
+            return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+        }
+        return NextResponse.json(result.rows[0].config || {});
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
+}
 
-    // You can add logic here to verify the API key belongs to the requested agent ID.
-    
-    // --- EXAMPLE CONFIGURATION ---
-    // You can control the agent's behavior from your server.
-    const agentConfig = {
-        fim_enabled: true,
-        fim_directories: ["/etc", "/bin", "/home/user/critical_files"], // Use appropriate paths
-        log_collector_enabled: true,
-        log_collector_file: "/var/log/syslog", // Use an appropriate log file
-    };
-
-    return NextResponse.json(agentConfig);
+export async function PUT(request, { params }) {
+    const { id } = await params;
+    const newConfig = await request.json();
+    try {
+        const query = `UPDATE agents SET config = $1, updated_at = NOW() WHERE id = $2 RETURNING id, config;`;
+        const result = await pool.query(query, [newConfig, id]);
+        if (result.rowCount === 0) {
+            return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+        }
+        return NextResponse.json(result.rows[0]);
+    } catch (error) {
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    }
 }

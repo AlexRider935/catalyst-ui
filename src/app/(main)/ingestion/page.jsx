@@ -17,12 +17,12 @@ import Link from "next/link";
 import SourceList from "./components/SourceList";
 import SourceDetail from "./components/SourceDetail";
 
-// Custom hook to fetch and periodically refresh agent data
+// --- Custom hook: fetch + polling ---
 const useAgents = () => {
   const [agents, setAgents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const POLLING_INTERVAL = 10000; // Refresh every 10 seconds
+  const POLLING_INTERVAL = 10000;
 
   const fetchData = async () => {
     try {
@@ -46,83 +46,77 @@ const useAgents = () => {
 
   useEffect(() => {
     fetchData();
-    const intervalId = setInterval(fetchData, POLLING_INTERVAL);
-    return () => clearInterval(intervalId);
+    const id = setInterval(fetchData, POLLING_INTERVAL);
+    return () => clearInterval(id);
   }, []);
 
   return { agents, setAgents, isLoading, error, mutate: fetchData };
 };
 
+// --- Confirm Delete Modal ---
 const ConfirmDeleteDialog = ({ source, isOpen, onClose, onDelete }) => (
   <Transition appear show={isOpen} as={Fragment}>
     <Dialog as="div" className="relative z-50" onClose={onClose}>
+      {/* Overlay */}
       <Transition.Child
         as={Fragment}
-        enter="ease-out duration-300"
+        enter="ease-out duration-200"
         enterFrom="opacity-0"
         enterTo="opacity-100"
-        leave="ease-in duration-200"
+        leave="ease-in duration-150"
         leaveFrom="opacity-100"
         leaveTo="opacity-0">
-        <div className="fixed inset-0 bg-black/30" />
+        <div className="fixed inset-0 bg-black/40" />
       </Transition.Child>
-      <div className="fixed inset-0 overflow-y-auto">
-        <div className="flex min-h-full items-center justify-center p-4 text-center">
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-300"
-            enterFrom="opacity-0 scale-95"
-            enterTo="opacity-100 scale-100"
-            leave="ease-in duration-200"
-            leaveFrom="opacity-100 scale-100"
-            leaveTo="opacity-0 scale-95">
-            <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-              <div className="sm:flex sm:items-start">
-                <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                  <AlertTriangle
-                    className="h-6 w-6 text-red-600"
-                    aria-hidden="true"
-                  />
-                </div>
-                <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
-                  <Dialog.Title
-                    as="h3"
-                    className="text-base font-semibold leading-6 text-slate-900">
-                    Delete Agent
-                  </Dialog.Title>
-                  <div className="mt-2">
-                    <p className="text-sm text-slate-500">
-                      Are you sure you want to delete the agent{" "}
-                      <span className="font-bold text-slate-700">
-                        {source?.name}
-                      </span>
-                      ? This action cannot be undone.
-                    </p>
-                  </div>
-                </div>
+
+      {/* Dialog Panel */}
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-200"
+          enterFrom="opacity-0 scale-95"
+          enterTo="opacity-100 scale-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100 scale-100"
+          leaveTo="opacity-0 scale-95">
+          <Dialog.Panel className="w-full max-w-md rounded-2xl bg-white shadow-xl ring-1 ring-slate-200 p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
-              <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
-                  onClick={onDelete}>
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto"
-                  onClick={onClose}>
-                  Cancel
-                </button>
+              <div className="flex-1">
+                <Dialog.Title className="text-lg font-semibold text-slate-900">
+                  Delete Agent
+                </Dialog.Title>
+                <p className="mt-2 text-sm text-slate-600">
+                  Are you sure you want to delete{" "}
+                  <span className="font-semibold text-slate-800">
+                    {source?.name}
+                  </span>
+                  ? This action cannot be undone.
+                </p>
               </div>
-            </Dialog.Panel>
-          </Transition.Child>
-        </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button
+                onClick={onDelete}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500">
+                Delete
+              </button>
+            </div>
+          </Dialog.Panel>
+        </Transition.Child>
       </div>
     </Dialog>
   </Transition>
 );
 
+// --- Page ---
 export default function IngestionPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -130,6 +124,7 @@ export default function IngestionPage() {
   const { agents, setAgents, isLoading, error, mutate } = useAgents();
   const [sourceToDelete, setSourceToDelete] = useState(null);
 
+  // --- selection logic ---
   const selectedSourceId = searchParams.get("source_id");
   const selectedSource = useMemo(() => {
     if (!selectedSourceId || agents.length === 0) return agents[0] || null;
@@ -142,33 +137,39 @@ export default function IngestionPage() {
       agents.length > 0 &&
       !agents.some((s) => s.id === selectedSourceId)
     ) {
-      const newUrl = `${pathname}?source_id=${agents[0].id}`;
-      router.replace(newUrl, { scroll: false });
+      router.replace(`${pathname}?source_id=${agents[0].id}`, {
+        scroll: false,
+      });
     }
   }, [isLoading, agents, selectedSourceId, pathname, router]);
 
+  // --- handlers ---
   const handleSelectSource = (source) => {
-    const newUrl = source ? `${pathname}?source_id=${source.id}` : pathname;
-    router.push(newUrl, { scroll: false });
+    router.push(source ? `${pathname}?source_id=${source.id}` : pathname, {
+      scroll: false,
+    });
   };
 
   const handleDelete = async () => {
     if (!sourceToDelete) return;
     const agentName = sourceToDelete.name;
     const originalAgents = [...agents];
+
     setAgents((prev) => prev.filter((s) => s.id !== sourceToDelete.id));
     if (selectedSource?.id === sourceToDelete.id) {
-      const firstAgent = agents.filter((s) => s.id !== sourceToDelete.id)[0];
-      handleSelectSource(firstAgent || null);
+      const next = agents.filter((s) => s.id !== sourceToDelete.id)[0];
+      handleSelectSource(next || null);
     }
     setSourceToDelete(null);
+
     const deletePromise = fetch(`/api/agents/${sourceToDelete.id}`, {
       method: "DELETE",
     });
+
     toast.promise(deletePromise, {
       loading: `Deleting ${agentName}...`,
       success: (res) => {
-        if (!res.ok) throw new Error("Failed to delete from server.");
+        if (!res.ok) throw new Error("Failed to delete on server.");
         return `${agentName} deleted successfully.`;
       },
       error: (err) => {
@@ -178,54 +179,58 @@ export default function IngestionPage() {
     });
   };
 
+  // --- states UI ---
   const renderContent = () => {
     if (isLoading && agents.length === 0) {
       return (
-        <div className="flex justify-center items-center h-full rounded-xl shadow-sm border border-slate-200/80 bg-white">
+        <div className="flex items-center justify-center h-full rounded-xl border border-slate-200 bg-white shadow-sm">
           <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
         </div>
       );
     }
+
     if (error && agents.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center text-center bg-white border-2 border-dashed border-red-300 rounded-lg p-16 h-full">
-          <div className="p-4 mb-5 rounded-full bg-red-100 text-red-500">
-            <ServerCrash size={48} />
+        <div className="flex flex-col items-center justify-center h-full p-12 text-center rounded-xl border-2 border-dashed border-red-300 bg-white">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-500">
+            <ServerCrash size={32} />
           </div>
-          <h2 className="text-2xl font-semibold text-slate-800">
+          <h2 className="text-xl font-semibold text-slate-800">
             Failed to Load Agents
           </h2>
-          <p className="mt-2 max-w-lg text-slate-500">
+          <p className="mt-2 text-slate-500">
             There was an error communicating with the API.
           </p>
-          <p className="mt-2 text-xs text-red-600 font-mono bg-red-50 p-2 rounded">
+          <pre className="mt-4 text-xs text-red-600 font-mono bg-red-50 px-3 py-2 rounded">
             {error}
-          </p>
+          </pre>
         </div>
       );
     }
+
     if (agents.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center text-center bg-white border-2 border-dashed border-slate-300 rounded-lg p-16 h-full">
-          <div className="p-4 mb-5 rounded-full bg-slate-100 text-slate-500">
-            <ShieldCheck size={48} />
+        <div className="flex flex-col items-center justify-center h-full p-12 text-center rounded-xl border-2 border-dashed border-slate-300 bg-white">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+            <ShieldCheck size={32} />
           </div>
-          <h2 className="text-2xl font-semibold text-slate-800">
+          <h2 className="text-xl font-semibold text-slate-800">
             No Agents Enrolled
           </h2>
-          <p className="mt-2 max-w-lg text-slate-500">
-            Register your first agent to begin monitoring your endpoints.
+          <p className="mt-2 text-slate-500">
+            Register your first agent to begin monitoring endpoints.
           </p>
           <Link
             href="/ingestion/new"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg border border-transparent bg-slate-900 py-2.5 px-5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
-            <Plus size={18} /> Register New Agent
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+            <Plus size={16} /> Register New Agent
           </Link>
         </div>
       );
     }
+
     return (
-      <div className="flex h-full rounded-xl shadow-sm border border-slate-200/80 bg-white overflow-hidden">
+      <div className="flex h-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <SourceList
           sources={agents}
           selectedSource={selectedSource}
@@ -235,7 +240,7 @@ export default function IngestionPage() {
           key={selectedSource ? selectedSource.id : "empty"}
           source={selectedSource}
           onDeleteInitiated={setSourceToDelete}
-          onUpdate={mutate} // This prop is essential for the refresh button to work
+          onUpdate={mutate}
         />
       </div>
     );
@@ -250,22 +255,26 @@ export default function IngestionPage() {
         onDelete={handleDelete}
         source={sourceToDelete}
       />
-      <div className="flex flex-col h-full bg-slate-50 space-y-8">
-        <header className="flex-shrink-0 flex items-start justify-between gap-4">
+
+      <div className="flex flex-col h-full bg-slate-50 space-y-6">
+        {/* Page Header */}
+        <header className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">
+            <h1 className="text-2xl font-bold text-slate-800">
               Agent Fleet Management
             </h1>
             <p className="mt-1 text-slate-500">
-              Manage and monitor all active endpoint agents in real-time.
+              Manage and monitor all enrolled endpoint agents in real-time.
             </p>
           </div>
           <Link
             href="/ingestion/new"
-            className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-slate-900 py-2.5 px-5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">
-            <Plus size={18} /> Register New Agent
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2">
+            <Plus size={16} /> Register New Agent
           </Link>
         </header>
+
+        {/* Main content */}
         <main className="flex-1 min-h-0">
           <AnimatePresence mode="wait">
             <motion.div
