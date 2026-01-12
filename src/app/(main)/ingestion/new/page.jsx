@@ -1,3 +1,5 @@
+// src/app/(main)/ingestion/new/page.jsx
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -16,14 +18,15 @@ import clsx from "clsx";
 import toast, { Toaster } from "react-hot-toast";
 
 import CatalystAgentConfig from "./components/CatalystAgentConfig";
+// --- (NEW) Import the new instructions component ---
+import ActivationInstructions from "./components/ActivationInstructions";
 
-// --- Placeholder for unimplemented source types ---
+// --- PlaceholderConfig component remains the same ---
 const PlaceholderConfig = ({ type, config, onConfigChange }) => (
   <div className="space-y-4">
     <label
       htmlFor="name"
-      className="block text-sm font-medium text-slate-700 mb-1"
-    >
+      className="block text-sm font-medium text-slate-700 mb-1">
       Source Name
     </label>
     <input
@@ -45,7 +48,7 @@ const PlaceholderConfig = ({ type, config, onConfigChange }) => (
   </div>
 );
 
-// --- Comprehensive catalog of all supported source types ---
+// --- SOURCE_CATALOG remains the same ---
 const SOURCE_CATALOG = {
   "Endpoint & Host": [
     {
@@ -78,7 +81,7 @@ const SOURCE_CATALOG = {
   ],
 };
 
-// --- Map IDs to dedicated configuration components ---
+// --- CONFIG_COMPONENT_MAP remains the same ---
 const CONFIG_COMPONENT_MAP = {
   "catalyst-agent": CatalystAgentConfig,
 };
@@ -92,6 +95,9 @@ export default function NewSourceWorkbench() {
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // --- (NEW) State to hold the result after a successful registration ---
+  const [registrationResult, setRegistrationResult] = useState(null);
+
   const selectedSource = useMemo(() => {
     for (const category in SOURCE_CATALOG) {
       const found = SOURCE_CATALOG[category].find(
@@ -102,6 +108,7 @@ export default function NewSourceWorkbench() {
     return null;
   }, [selectedSourceTypeId]);
 
+  // --- (MODIFIED) Updated handleSave function ---
   const handleSave = async () => {
     if (!configData.name) {
       toast.error("Source name is required.");
@@ -120,40 +127,13 @@ export default function NewSourceWorkbench() {
 
         toast.success("Agent pre-registered successfully!");
 
-        toast.custom(
-          (t) => (
-            <div
-              className={`${
-                t.visible ? "animate-enter" : "animate-leave"
-              } max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-slate-200`}
-            >
-              <div className="flex-1 w-0 p-4">
-                <p className="text-sm font-semibold text-slate-900">
-                  One-Time Registration Token
-                </p>
-                <div className="mt-2 p-2 bg-slate-100 font-mono text-xs rounded break-all">
-                  {result.registration_token}
-                </div>
-              </div>
-              <div className="flex border-l border-slate-200">
-                <button
-                  onClick={() => toast.dismiss(t.id)}
-                  className="px-4 text-sm font-medium text-blue-600 hover:text-blue-500"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          ),
-          { duration: 600000 }
-        );
-
-        setTimeout(() => {
-          router.push("/ingestion");
-        }, 1000);
+        // (MODIFIED) Set the result in state to trigger the UI change
+        setRegistrationResult(result);
       } else {
         toast.error(
-          `Saving for “${selectedSource?.name || "this source"}” is not yet implemented.`
+          `Saving for “${
+            selectedSource?.name || "this source"
+          }” is not yet implemented.`
         );
       }
     } catch (error) {
@@ -199,8 +179,7 @@ export default function NewSourceWorkbench() {
           <div className="flex items-center gap-3">
             <Link
               href="/ingestion"
-              className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
-            >
+              className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors">
               <ArrowLeft size={22} />
             </Link>
             <div>
@@ -212,11 +191,11 @@ export default function NewSourceWorkbench() {
               </p>
             </div>
           </div>
+          {/* --- (MODIFIED) Disable save button after success --- */}
           <button
             onClick={handleSave}
-            disabled={isSaving || !configData.name}
-            className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-blue-600 py-2.5 px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 disabled:cursor-not-allowed"
-          >
+            disabled={isSaving || !configData.name || !!registrationResult}
+            className="inline-flex items-center gap-2 rounded-lg border border-transparent bg-blue-600 py-2.5 px-5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:bg-slate-400 disabled:cursor-not-allowed">
             {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -228,8 +207,12 @@ export default function NewSourceWorkbench() {
         {/* Main content */}
         <main className="flex-1 min-h-0">
           <div className="flex h-full rounded-xl shadow-sm border border-slate-200/80 bg-white overflow-hidden">
-            {/* Sidebar */}
-            <aside className="w-80 border-r border-slate-200 flex flex-col bg-white">
+            {/* --- (MODIFIED) Disable sidebar after registration --- */}
+            <aside
+              className={clsx(
+                "w-80 border-r border-slate-200 flex flex-col bg-white transition-opacity",
+                registrationResult && "opacity-50 pointer-events-none"
+              )}>
               <div className="p-4 border-b border-slate-200">
                 <div className="relative">
                   <Search
@@ -264,8 +247,7 @@ export default function NewSourceWorkbench() {
                               selectedSourceTypeId === item.id
                                 ? "bg-slate-200 text-slate-900"
                                 : "text-slate-600 hover:bg-slate-100"
-                            )}
-                          >
+                            )}>
                             {selectedSourceTypeId === item.id && (
                               <motion.div
                                 layoutId="sidebar-active-indicator"
@@ -294,11 +276,15 @@ export default function NewSourceWorkbench() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -15 }}
                   transition={{ duration: 0.2 }}
-                  className="relative z-10 p-6 lg:p-8"
-                >
+                  className="relative z-10 p-6 lg:p-8">
                   {selectedSource && (
                     <SourceConfigWrapper source={selectedSource}>
-                      {renderConfigComponent()}
+                      {/* --- (MODIFIED) Conditionally render form or instructions --- */}
+                      {registrationResult ? (
+                        <ActivationInstructions result={registrationResult} />
+                      ) : (
+                        renderConfigComponent()
+                      )}
                     </SourceConfigWrapper>
                   )}
                 </motion.div>
@@ -311,6 +297,7 @@ export default function NewSourceWorkbench() {
   );
 }
 
+// --- SourceConfigWrapper remains the same ---
 function SourceConfigWrapper({ source, children }) {
   return (
     <div className="max-w-4xl mx-auto">
@@ -326,8 +313,7 @@ function SourceConfigWrapper({ source, children }) {
           {source.tags.map((tag) => (
             <span
               key={tag}
-              className="text-xs bg-slate-200 text-slate-700 font-medium px-2.5 py-1 rounded-full"
-            >
+              className="text-xs bg-slate-200 text-slate-700 font-medium px-2.5 py-1 rounded-full">
               {tag}
             </span>
           ))}

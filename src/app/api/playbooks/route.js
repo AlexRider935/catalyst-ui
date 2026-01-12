@@ -1,21 +1,53 @@
-import { db } from '@/lib/db'; // Assuming your db connection setup is in lib/db.js
+// src/app/api/playbooks/route.js
+
+import { pool } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+// --- 1. Define the Schema with Zod ---
+// This schema defines the expected shape and types of the incoming request body.
+const playbookSchema = z.object({
+    name: z.string({ required_error: "Playbook name is required." }).min(1, "Playbook name cannot be empty."),
+    description: z.string().nullable().default(null),
+    owner: z.string().nullable().default(null),
+    tags: z.array(z.string()).default([]),
+    // We use z.any() for trigger and actions as their structure can be complex.
+    // For even more safety, you could define their specific object shapes here too.
+    trigger: z.object({}).passthrough({ message: "Trigger must be a valid object." }),
+    actions: z.array(z.object({}).passthrough({ message: "Actions must be an array of objects." })).min(1, "At least one action is required."),
+    isEnabled: z.boolean().default(true),
+});
+
 
 export async function POST(request) {
     try {
-        const playbookData = await request.json();
+        const body = await request.json();
 
-        // --- Basic Validation ---
-        if (!playbookData.name || !playbookData.trigger || !playbookData.actions) {
+        // --- 2. Validate the request body against the schema ---
+        const validationResult = playbookSchema.safeParse(body);
+
+        if (!validationResult.success) {
             return NextResponse.json(
-                { error: 'Missing required fields: name, trigger, and actions are required.' },
+                {
+                    error: 'Invalid input.',
+                    // Format Zod's errors for a clear client response
+                    details: validationResult.error.flatten().fieldErrors
+                },
                 { status: 400 }
             );
         }
 
-        // --- Data Transformation (camelCase to snake_case for DB) ---
-        // The 'pg' library handles JSON stringification automatically for JSONB columns.
-        const {
+        // Use the validated (and possibly defaulted) data from Zod
+        const { name, description, owner, tags, trigger, actions, isEnabled } = validationResult.data;
+
+        // --- 3. Execute the Database Query ---
+        const query = `
+            INSERT INTO playbooks (name, description, owner, tags, trigger, actions, is_enabled)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *;
+        `;
+
+        const values = [
             name,
             description,
             owner,
@@ -23,29 +55,13 @@ export async function POST(request) {
             trigger,
             actions,
             isEnabled,
-            changeJustification, // Note: We don't store this in this version, but it's good practice to log it elsewhere.
-        } = playbookData;
-
-        const query = `
-      INSERT INTO playbooks (name, description, owner, tags, trigger, actions, is_enabled)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *;
-    `;
-
-        const values = [
-            name,
-            description || null,
-            owner || null,
-            tags || [],
-            trigger,
-            actions,
-            isEnabled,
         ];
 
-        const result = await db.query(query, values);
+        // Using 'pool' for consistency with our project's db setup
+        const result = await pool.query(query, values);
         const newPlaybook = result.rows[0];
 
-        // --- Data Transformation (snake_case from DB to camelCase for client) ---
+        // --- 4. Transform DB response to camelCase for the client ---
         const responsePayload = {
             id: newPlaybook.id,
             name: newPlaybook.name,
@@ -64,6 +80,15 @@ export async function POST(request) {
 
     } catch (error) {
         console.error('API Error:', error);
+
+        // Handle potential database errors (like unique constraint violation)
+        if (error.code === '23505') { // PostgreSQL unique violation error code
+            return NextResponse.json(
+                { error: 'A playbook with this name already exists.' },
+                { status: 409 } // 409 Conflict
+            );
+        }
+
         return NextResponse.json(
             { error: 'Failed to create playbook.', details: error.message },
             { status: 500 }

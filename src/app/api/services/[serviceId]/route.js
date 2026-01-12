@@ -1,32 +1,47 @@
-import { query } from '@/lib/db';
+// src/app/api/services/[serviceId]/route.js
+
+import { pool } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
 export async function DELETE(req, { params }) {
     const { serviceId } = params;
 
     if (!serviceId) {
-        return new Response(JSON.stringify({ error: 'Service ID is required' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return NextResponse.json({ error: 'Service ID is required' }, { status: 400 });
     }
 
-    try {
-        // Delete all decoders for this service
-        await query('DELETE FROM decoders WHERE service_id = $1', [serviceId]);
+    // Get a client from the pool to run a transaction
+    const client = await pool.connect();
 
-        // Delete the service
-        const result = await query('DELETE FROM services WHERE id = $1 RETURNING *', [serviceId]);
+    try {
+        // Start the transaction
+        await client.query('BEGIN');
+
+        // 1. Delete all decoders associated with the service
+        await client.query('DELETE FROM decoders WHERE service_id = $1', [serviceId]);
+
+        // 2. Delete the service itself
+        const result = await client.query('DELETE FROM services WHERE id = $1 RETURNING *', [serviceId]);
 
         if (result.rowCount === 0) {
-            console.log(`Service ${serviceId} not found, treating as success.`);
+            // Log if the service was already gone, but don't treat it as an error
+            console.log(`Service ${serviceId} not found, but proceeding as success.`);
         }
 
-        return new Response(null, { status: 204 });
+        // If both commands succeed, commit the transaction
+        await client.query('COMMIT');
+
+        return new Response(null, { status: 204 }); // 204 No Content for successful DELETE
+
     } catch (error) {
+        // If any error occurs, roll back the transaction
+        await client.query('ROLLBACK');
+
         console.error(`Failed to delete service ${serviceId}:`, error);
-        return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+
+    } finally {
+        // ALWAYS release the client back to the pool
+        client.release();
     }
 }
